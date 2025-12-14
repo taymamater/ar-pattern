@@ -208,10 +208,13 @@
         </a-scene>
       `);
 
-      // Start MindAR after the scene is inserted
-      const sceneEl     = document.querySelector("a-scene");
-      const mindarSystem = sceneEl.systems["mindar-image-system"];
-      mindarSystem.start();
+      // Wait until the <a-scene> is fully loaded before starting MindAR
+      const sceneEl = document.querySelector("a-scene");
+      sceneEl.addEventListener("loaded", async () => {
+        const mindarSystem = sceneEl.systems["mindar-image-system"];
+        await mindarSystem.start();
+        hint.textContent = "Camera running ✅ Point at your marker.";
+      });
 
       // Update hint text on marker detection events
       const targetEl = document.getElementById("targetEntity");
@@ -229,9 +232,8 @@
 
       document.getElementById("start").addEventListener("click", () => {
         document.getElementById("overlay").style.display = "none";
-        // Build the MindAR scene and start tracking
+        // Build the MindAR scene and start tracking once loaded
         mountMindARScene();
-        hint.textContent = "Camera running ✅ Point at your marker.";
       });
     })();
   </script>
