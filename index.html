@@ -2,21 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Draw Pattern</title>
   <style>
     /* --- RESET & LAYOUT --- */
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
       font-family: system-ui, -apple-system, sans-serif;
-      overflow: hidden; background: #111; color: white;
+      background: #111; color: white;
+      
+      /* CRITICAL FIXES FOR SCROLLING/SPLIT SCREEN */
+      overflow: hidden;           /* no scrollbars */
+      position: fixed;            /* locks body in place */
+      overscroll-behavior: none;  /* stops iOS bounce */
+      touch-action: none;         /* disables default touch gestures */
     }
     
     .step {
       position: absolute; inset: 0;
+      width: 100%; height: 100%;
       display: flex; flex-direction: column;
-      transition: transform 0.4s ease;
+      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); /* Smooth slide */
       background: #111;
+      overflow: hidden; /* Ensures contents don't spill out */
     }
     .hidden-left { transform: translateX(-100%); }
     .hidden-right { transform: translateX(100%); }
@@ -25,7 +33,9 @@
     #draw-container {
       flex: 1; position: relative;
       background: #222; 
-      touch-action: none; cursor: crosshair;
+      /* Ensures canvas captures all touches */
+      touch-action: none; 
+      cursor: crosshair;
       overflow: hidden;
     }
 
@@ -42,6 +52,7 @@
       position: absolute; inset: 0; 
       z-index: 10; 
       display: block; 
+      touch-action: none; /* Crucial for drawing */
     }
 
     /* --- PATTERN DRAWER --- */
@@ -54,9 +65,13 @@
       z-index: 30;
       display: flex; align-items: center; gap: 10px;
       overflow-x: auto; padding: 0 10px;
+      
       transform: translateY(150%); /* Hidden by default */
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      
+      /* Re-enable scrolling only inside the drawer */
+      touch-action: pan-x; 
     }
     #patternDrawer.open { transform: translateY(0); }
     
@@ -86,6 +101,7 @@
       display: flex; gap: 8px;
       align-items: center; justify-content: space-between;
       border-top: 1px solid rgba(255,255,255,0.15);
+      touch-action: none; /* Prevent dragging the UI bar */
     }
     .top-bar {
       border-bottom: 1px solid rgba(255,255,255,0.15);
@@ -220,21 +236,14 @@
     const eraserBtn = document.getElementById("eraserBtn");
 
     // ============================================================
-    //  👇 UPDATE YOUR IMAGE NAMES HERE 👇
-    //  Ensure you have a folder named 'patterns' with these files
+    //  👇 YOUR IMAGE LIST 👇
     // ============================================================
     const presetPatterns = [
-      "patterns/p1.png", 
-      "patterns/p2.png",
-      "patterns/p3.png",
-      "patterns/p4.png",
-      "patterns/p5.png",
-      "patterns/p6.png",
-      "patterns/p7.png",
-      "patterns/p8.png",
-      "patterns/p9.png",
-      "patterns/p10.png",
-      "patterns/p11.png"
+      "patterns/1.jpg", 
+      "patterns/2.jpg",
+      "patterns/3.jpg",
+      "patterns/4.jpg",
+      "patterns/5.jpg"
     ];
     // ============================================================
 
@@ -247,9 +256,10 @@
       const img = document.createElement("img");
       img.src = src;
       img.className = "pattern-thumb";
-      // Handle loading errors just in case
       img.onerror = () => { img.style.display = 'none'; }; 
-      img.addEventListener("click", () => {
+      img.addEventListener("click", (e) => {
+        // Stop event from bubbling to canvas (prevent drawing when selecting)
+        e.stopPropagation();
         setBackingImage(src);
         patternDrawer.classList.remove("open");
       });
@@ -257,13 +267,10 @@
     });
 
     // Toggle Drawer
-    libBtn.addEventListener("click", () => {
-      patternDrawer.classList.toggle("open");
+    libBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        patternDrawer.classList.toggle("open");
     });
-    // Close drawer when interacting with canvas
-    drawCanvas.addEventListener("mousedown", () => patternDrawer.classList.remove("open"));
-    drawCanvas.addEventListener("touchstart", () => patternDrawer.classList.remove("open"));
-
 
     // --- 1. SETUP CANVAS ---
     function resizeDrawCanvas() {
@@ -308,15 +315,23 @@
       updateToolSettings();
     });
 
-    // --- 3. DRAWING LOGIC ---
+    // --- 3. DRAWING LOGIC (With Scroll Lock) ---
     function startDraw(e) {
+      // Close drawer if open
+      patternDrawer.classList.remove("open");
+
+      // Stop Browser Scrolling immediately
+      if(e.cancelable) e.preventDefault();
+      
       isDrawing = true;
       const { x, y } = getPos(e);
       lastX = x; lastY = y;
     }
+    
     function draw(e) {
+      if(e.cancelable) e.preventDefault(); // Stop scrolling while moving
       if (!isDrawing) return;
-      e.preventDefault(); 
+      
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(lastX, lastY);
@@ -324,6 +339,7 @@
       ctx.stroke();
       lastX = x; lastY = y;
     }
+    
     function endDraw() { isDrawing = false; }
     
     function getPos(e) {
@@ -332,6 +348,8 @@
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       return { x: clientX - rect.left, y: clientY - rect.top };
     }
+    
+    // Add 'passive: false' to allow preventDefault() to work for scroll blocking
     drawCanvas.addEventListener("mousedown", startDraw);
     drawCanvas.addEventListener("mousemove", draw);
     drawCanvas.addEventListener("mouseup", endDraw);
@@ -341,18 +359,15 @@
 
     document.getElementById("clearBtn").addEventListener("click", () => {
       ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-      // NOTE: We do NOT clear the backing image here, only the drawing.
     });
 
-    // --- 4. IMAGE HANDLING (Upload & Library) ---
+    // --- 4. IMAGE HANDLING ---
     function setBackingImage(src) {
-      // Must set crossorigin for externally hosted images (though local files are tricky)
       backingImg.crossOrigin = "Anonymous";
       backingImg.src = src;
       backingImg.style.display = "block";
     }
 
-    // Upload Handler
     const uploadBtn = document.getElementById("uploadBtn");
     const fileInput = document.getElementById("imgUpload");
     uploadBtn.addEventListener("click", () => fileInput.click());
@@ -371,10 +386,8 @@
       c.height = drawCanvas.height;
       const cx = c.getContext("2d");
 
-      // Draw Backing Image (Cover Mode)
       if (backingImg.style.display !== 'none' && backingImg.src) {
         const img = backingImg;
-        // Logic to cover the canvas
         const nw = img.naturalWidth || 100;
         const nh = img.naturalHeight || 100;
         const canvasRatio = c.width / c.height;
@@ -388,15 +401,8 @@
           dw = c.width; dh = c.width / imgRatio;
           dx = 0; dy = (c.height - dh) / 2;
         }
-        
-        try {
-            cx.drawImage(img, dx, dy, dw, dh);
-        } catch(e) {
-            console.error("Could not draw image to canvas (CORS?):", e);
-        }
+        try { cx.drawImage(img, dx, dy, dw, dh); } catch(e) {}
       }
-
-      // Draw Strokes
       cx.drawImage(drawCanvas, 0, 0);
       return c;
     }
@@ -414,7 +420,7 @@
       step1.classList.remove("hidden-left");
     });
 
-    // Preview Render
+    // Preview
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
     bgColorInput.addEventListener("input", renderPatternPreview);
@@ -433,7 +439,6 @@
       const ratio = source.width / source.height;
       const tileW = baseSize;
       const tileH = baseSize / ratio; 
-
       const mode = tileModeInput.value;
       const cols = Math.ceil(previewCanvas.width / tileW) + 1;
       const rows = Math.ceil(previewCanvas.height / tileH) + 1;
