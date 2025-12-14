@@ -6,7 +6,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Pattern AR (MindAR)</title>
 
-  <!-- A‑Frame and MindAR -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -108,9 +107,7 @@
 
   <div id="hint">Loading pattern…</div>
 
-  <!-- Small canvas to store the pixel pattern (from Step 2) -->
   <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
-  <!-- Power‑of‑two tiled texture (repeats pattern cleanly) -->
   <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
   <script>
@@ -201,13 +198,15 @@
     }
 
     function mountMindARScene() {
-      // Use your compiled mind target file here. Bump ?v= to force refresh after recompiling.
-      const targetSrc = "./targets/targets.mind?v=1";
+      // NOTE: Updated path to match the root directory structure of your uploaded files
+      const targetSrc = "targets.mind";
 
       document.body.insertAdjacentHTML("beforeend", `
         <a-scene
           mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false;"
-          renderer="alpha: true; antialias: true; physicallyCorrectLights: true;"
+          embedded
+          color-space="sRGB"
+          renderer="colorManagement: true, physicallyCorrectLights; alpha: true;"
           vr-mode-ui="enabled: false"
           device-orientation-permission-ui="enabled: false"
         >
