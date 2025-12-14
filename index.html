@@ -3,405 +3,319 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Pattern Maker</title>
-
+  <title>Draw Pattern</title>
   <style>
-    html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto; }
-    .topbar{
-      position: fixed; top: 12px; left: 12px; right: 12px;
-      z-index: 20;
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      color: rgba(255,255,255,.92);
-      background: rgba(0,0,0,.45);
-      padding: 10px 12px; border-radius: 14px;
-      backdrop-filter: blur(8px);
+    /* --- RESET & LAYOUT --- */
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden; background: #111; color: white;
     }
-    .topbar small{ opacity:.85; display:block; margin-top:2px; }
-    .panel{
-      position: fixed; left: 0; right: 0; bottom: 0;
-      z-index: 20;
-      background: linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0));
-      padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
-      display:grid;
-      gap: 10px;
+    
+    /* --- STEP CONTAINERS --- */
+    .step {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      transition: transform 0.4s ease;
     }
-    .row{ display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; }
-    .btn{
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.25);
-      color: rgba(255,255,255,.92);
-      padding: 10px 12px;
-      border-radius: 12px;
-      cursor:pointer;
-      user-select:none;
-      font-size: 14px;
+    .hidden-left { transform: translateX(-100%); }
+    .hidden-right { transform: translateX(100%); }
+
+    /* --- STEP 1: DRAWING --- */
+    #draw-container {
+      flex: 1; position: relative;
+      background: #222; /* Canvas background */
+      touch-action: none; cursor: crosshair;
     }
-    .btn:active{ transform: scale(.98); }
-    .btn.primary{ background: rgba(255,255,255,.22); }
-    .chip{
-      display:flex; align-items:center; gap:8px;
-      background: rgba(255,255,255,.10);
-      border: 1px solid rgba(255,255,255,.22);
-      padding: 8px 10px; border-radius: 999px;
-      color: rgba(255,255,255,.92);
-      font-size: 14px;
+    canvas { display: block; }
+
+    /* --- STEP 2: PREVIEW --- */
+    #preview-container {
+      flex: 1; position: relative;
+      background: #000;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
     }
-    input[type="color"]{ width: 34px; height: 34px; border: none; background: transparent; padding: 0; }
-    select{
-      background: rgba(0,0,0,.35);
-      border: 1px solid rgba(255,255,255,.25);
-      color: rgba(255,255,255,.92);
-      padding: 8px 10px;
-      border-radius: 12px;
-      font-size: 14px;
-      outline: none;
+    /* The canvas that shows the tiled preview */
+    #previewCanvas {
+      width: 100%; height: 100%;
+      object-fit: cover;
     }
-    .wrap{ display:flex; justify-content:center; }
-    canvas.box{
-      width: min(86vw, 340px);
-      height: min(86vw, 340px);
-      border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.20);
-      touch-action: none;
+
+    /* --- UI CONTROLS --- */
+    .ui-bar {
+      z-index: 10;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(10px);
+      padding: 16px;
+      display: flex; gap: 12px;
+      align-items: center; justify-content: space-between;
+      border-top: 1px solid rgba(255,255,255,0.15);
     }
-    .hint{ text-align:center; color: rgba(255,255,255,.85); font-size: 13px; }
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      justify-items:center;
+    .top-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.15);
+      border-top: none;
     }
-    @media (min-width: 700px){
-      .grid2{ grid-template-columns: 1fr 1fr; align-items:start; }
+
+    h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.5px; opacity: 0.9; }
+
+    /* Buttons */
+    .btn {
+      background: #eee; color: #111; border: none;
+      padding: 10px 18px; border-radius: 20px;
+      font-weight: 600; font-size: 14px; cursor: pointer;
     }
+    .btn:active { transform: scale(0.96); }
+    .btn-outline { background: transparent; border: 1px solid #666; color: #eee; }
+    
+    /* Inputs */
+    .control-group {
+      display: flex; flex-direction: column; gap: 4px; flex: 1;
+    }
+    label { font-size: 11px; text-transform: uppercase; color: #aaa; letter-spacing: 1px; }
+    
+    select, input[type="color"] {
+      background: #333; border: 1px solid #555;
+      color: white; padding: 8px; border-radius: 8px;
+      font-size: 14px; width: 100%; outline: none;
+    }
+    input[type="color"] { height: 36px; padding: 2px; }
+
   </style>
 </head>
-
 <body>
-  <div class="topbar">
-    <div>
-      <div><strong>Pattern Maker</strong></div>
-      <small id="status">Step 1: Draw (freehand) → Next to convert into a grid.</small>
+
+  <div id="step1" class="step">
+    <div class="ui-bar top-bar">
+      <h2>1. Draw Your Tile</h2>
     </div>
-    <div class="chip">
-      Grid
-      <select id="gridSize">
-        <option value="8">8×8</option>
-        <option value="16" selected>16×16</option>
-        <option value="24">24×24</option>
-      </select>
+
+    <div id="draw-container">
+      <canvas id="drawCanvas"></canvas>
+    </div>
+
+    <div class="ui-bar">
+      <button class="btn btn-outline" id="clearBtn">Clear</button>
+      <div style="flex:1"></div>
+      <button class="btn" id="toStep2">Next &rarr;</button>
     </div>
   </div>
 
-  <!-- STEP 1: draw -->
-  <div class="panel" id="step1">
-    <div class="wrap">
-      <canvas id="drawCanvas" class="box" width="340" height="340"></canvas>
+  <div id="step2" class="step hidden-right">
+    <div class="ui-bar top-bar">
+      <h2>2. Customize Pattern</h2>
     </div>
 
-    <div class="row">
-      <div class="chip">Color <input id="color" type="color" value="#ff6a00" /></div>
-      <div class="chip">
-        Size
-        <select id="brushSize">
-          <option value="6">6</option>
-          <option value="10" selected>10</option>
-          <option value="16">16</option>
-          <option value="24">24</option>
+    <div id="preview-container">
+      <canvas id="previewCanvas"></canvas>
+    </div>
+
+    <div class="ui-bar" style="flex-wrap: wrap;">
+      <div class="control-group" style="max-width: 60px;">
+        <label>BG</label>
+        <input type="color" id="bgColor" value="#000000">
+      </div>
+
+      <div class="control-group">
+        <label>Tiling</label>
+        <select id="tileMode">
+          <option value="grid">Grid</option>
+          <option value="brick">Brick (Offset)</option>
+          <option value="hex">Hex (Overlap)</option>
         </select>
       </div>
-      <div class="btn" id="eraser">Eraser</div>
-      <div class="btn" id="clearDraw">Clear</div>
-      <label class="btn" for="importImg">Import AI Image</label>
-      <input id="importImg" type="file" accept="image/*" hidden />
-      <div class="btn primary" id="toGrid">Next → Grid</div>
-    </div>
 
-    <div class="hint">
-      Tip: You can draw freely, or import an AI image, then convert it into a pixel grid.
+      <div style="width: 100%; height: 8px;"></div> <button class="btn btn-outline" id="backBtn">&larr; Edit</button>
+      <div style="flex:1"></div>
+      <button class="btn" id="saveBtn">Save & View AR</button>
     </div>
   </div>
-
-  <!-- STEP 2: grid + preview -->
-  <div class="panel" id="step2" style="display:none">
-    <div class="grid2">
-      <div>
-        <div class="hint" style="margin-bottom:6px">Step 2: Your drawing converted to a grid</div>
-        <div class="wrap">
-          <canvas id="gridCanvas" class="box" width="340" height="340"></canvas>
-        </div>
-      </div>
-
-      <div>
-        <div class="hint" style="margin-bottom:6px">Pattern preview (tiled)</div>
-        <div class="wrap">
-          <canvas id="previewCanvas" class="box" width="340" height="340"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="btn" id="backToDraw">← Back</div>
-      <div class="btn" id="exportGrid">Export PNG</div>
-      <div class="btn primary" id="openAR">Open AR →</div>
-    </div>
-
-    <div class="hint" id="gridHint">If it looks too detailed, switch Grid to 8×8 or 16×16.</div>
-  </div>
-
-  <!-- Hidden texture canvas (NxN) -->
-  <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
 
   <script>
-    const status = document.getElementById("status");
-
-    const step1 = document.getElementById("step1");
-    const step2 = document.getElementById("step2");
-
+    // --- VARIABLES ---
     const drawCanvas = document.getElementById("drawCanvas");
-    const dctx = drawCanvas.getContext("2d");
-
-    const gridCanvas = document.getElementById("gridCanvas");
-    const gctx = gridCanvas.getContext("2d");
-
+    const ctx = drawCanvas.getContext("2d");
+    
     const previewCanvas = document.getElementById("previewCanvas");
     const pctx = previewCanvas.getContext("2d");
 
-    const texCanvas = document.getElementById("texCanvas");
-    const tctx = texCanvas.getContext("2d");
+    let isDrawing = false;
+    let lastX = 0; let lastY = 0;
 
-    const gridSizeSel = document.getElementById("gridSize");
-    const colorInput = document.getElementById("color");
-    const brushSizeSel = document.getElementById("brushSize");
-
-    let N = parseInt(gridSizeSel.value, 10);
-    let drawing = false;
-    let isEraser = false;
-
-    // Setup drawing style
-    function applyBrush() {
-      dctx.lineCap = "round";
-      dctx.lineJoin = "round";
-      dctx.lineWidth = parseInt(brushSizeSel.value, 10);
-      if (isEraser) {
-        dctx.globalCompositeOperation = "destination-out";
-        dctx.strokeStyle = "rgba(0,0,0,1)";
-      } else {
-        dctx.globalCompositeOperation = "source-over";
-        dctx.strokeStyle = colorInput.value;
-      }
+    // --- SETUP DRAWING CANVAS ---
+    function resizeDrawCanvas() {
+      const container = document.getElementById("draw-container");
+      drawCanvas.width = container.clientWidth;
+      drawCanvas.height = container.clientHeight;
+      // Re-apply styles after resize
+      ctx.lineWidth = 15;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#ffffff";
     }
-    applyBrush();
+    window.addEventListener("resize", resizeDrawCanvas);
+    resizeDrawCanvas();
 
+    // --- DRAWING EVENTS ---
+    function startDraw(e) {
+      isDrawing = true;
+      const { x, y } = getPos(e);
+      lastX = x; lastY = y;
+    }
+    function draw(e) {
+      if (!isDrawing) return;
+      e.preventDefault(); // Stop scrolling on mobile
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      lastX = x; lastY = y;
+    }
+    function endDraw() { isDrawing = false; }
+    
     function getPos(e) {
-      const r = drawCanvas.getBoundingClientRect();
-      return { x: (e.clientX - r.left) * (drawCanvas.width / r.width),
-               y: (e.clientY - r.top)  * (drawCanvas.height / r.height) };
+      const rect = drawCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    drawCanvas.addEventListener("pointerdown", (e) => {
-      drawing = true;
-      drawCanvas.setPointerCapture(e.pointerId);
-      applyBrush();
-      const p = getPos(e);
-      dctx.beginPath();
-      dctx.moveTo(p.x, p.y);
+    drawCanvas.addEventListener("mousedown", startDraw);
+    drawCanvas.addEventListener("mousemove", draw);
+    drawCanvas.addEventListener("mouseup", endDraw);
+    drawCanvas.addEventListener("touchstart", startDraw, { passive: false });
+    drawCanvas.addEventListener("touchmove", draw, { passive: false });
+    drawCanvas.addEventListener("touchend", endDraw);
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
     });
 
-    drawCanvas.addEventListener("pointermove", (e) => {
-      if (!drawing) return;
-      const p = getPos(e);
-      dctx.lineTo(p.x, p.y);
-      dctx.stroke();
+    // --- STEP NAVIGATION ---
+    const step1 = document.getElementById("step1");
+    const step2 = document.getElementById("step2");
+
+    document.getElementById("toStep2").addEventListener("click", () => {
+      renderPattern(); // Generate the preview
+      step1.classList.add("hidden-left");
+      step2.classList.remove("hidden-right");
     });
 
-    drawCanvas.addEventListener("pointerup", () => { drawing = false; });
-    drawCanvas.addEventListener("pointercancel", () => { drawing = false; });
-
-    document.getElementById("eraser").addEventListener("click", () => {
-      isEraser = !isEraser;
-      status.textContent = isEraser ? "Eraser ON (freehand). Tap again to draw." : "Draw mode (freehand).";
-      applyBrush();
+    document.getElementById("backBtn").addEventListener("click", () => {
+      step2.classList.add("hidden-right");
+      step1.classList.remove("hidden-left");
     });
 
-    document.getElementById("clearDraw").addEventListener("click", () => {
-      dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-      status.textContent = "Cleared. Draw again, then convert to grid.";
-    });
+    // --- PATTERN GENERATION (STEP 2) ---
+    const bgColorInput = document.getElementById("bgColor");
+    const tileModeInput = document.getElementById("tileMode");
 
-    brushSizeSel.addEventListener("change", applyBrush);
-    colorInput.addEventListener("change", applyBrush);
+    bgColorInput.addEventListener("input", renderPattern);
+    tileModeInput.addEventListener("change", renderPattern);
 
-    // Import AI image into the draw canvas (cover fit)
-    document.getElementById("importImg").addEventListener("change", async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+    function renderPattern() {
+      // 1. Resize preview canvas to fill screen
+      const container = document.getElementById("preview-container");
+      previewCanvas.width = container.clientWidth;
+      previewCanvas.height = container.clientHeight;
 
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      await img.decode();
+      // 2. Fill Background
+      pctx.fillStyle = bgColorInput.value;
+      pctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-      const cw = drawCanvas.width, ch = drawCanvas.height;
-      const scale = Math.max(cw / img.width, ch / img.height);
-      const sw = cw / scale, sh = ch / scale;
-      const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+      // 3. Prepare the Tile
+      // We take the drawing canvas and treat it as our tile
+      // We'll scale it down to make a pattern
+      const TILE_SIZE = 120; // Size of one tile on the preview screen
+      const mode = tileModeInput.value;
 
-      dctx.save();
-      dctx.globalCompositeOperation = "source-over";
-      dctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-      dctx.restore();
+      // 4. Loop and Tile
+      // Calculate how many tiles fit
+      const cols = Math.ceil(previewCanvas.width / TILE_SIZE) + 1;
+      const rows = Math.ceil(previewCanvas.height / TILE_SIZE) + 1;
 
-      URL.revokeObjectURL(img.src);
-      e.target.value = "";
-      status.textContent = "Imported image. You can draw on top, then convert to grid.";
-    });
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          let drawX = x * TILE_SIZE;
+          let drawY = y * TILE_SIZE;
 
-    // Convert drawCanvas => NxN texCanvas (pixel grid)
-    function convertToGrid() {
-      N = parseInt(gridSizeSel.value, 10);
-      texCanvas.width = N;
-      texCanvas.height = N;
+          // Apply Offsets based on mode
+          if (mode === 'brick') {
+            // Shift every odd row by half a tile
+            if (y % 2 === 1) {
+              drawX -= TILE_SIZE / 2;
+            }
+          } else if (mode === 'hex') {
+            // Shift odd rows AND overlap vertically to pack tighter
+            drawY = y * (TILE_SIZE * 0.85); // Overlap vertically
+            if (y % 2 === 1) {
+              drawX -= TILE_SIZE / 2;
+            }
+          }
 
-      const off = document.createElement("canvas");
-      off.width = N; off.height = N;
-      const offCtx = off.getContext("2d");
-      offCtx.imageSmoothingEnabled = true;
-
-      // Downsample drawing to NxN
-      offCtx.clearRect(0,0,N,N);
-      offCtx.drawImage(drawCanvas, 0, 0, N, N);
-
-      // Read pixels and write to texCanvas as crisp pixels
-      const data = offCtx.getImageData(0,0,N,N).data;
-      const img = tctx.createImageData(N, N);
-
-      for (let i=0; i<N*N; i++){
-        const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
-        const base = i*4;
-
-        // Treat near-transparent as empty
-        if (a < 20) {
-          img.data[base+3] = 0;
-          continue;
-        }
-
-        img.data[base]   = r;
-        img.data[base+1] = g;
-        img.data[base+2] = b;
-        img.data[base+3] = 255;
-      }
-
-      tctx.putImageData(img, 0, 0);
-    }
-
-    function renderGridCanvas() {
-      const w = gridCanvas.width, h = gridCanvas.height;
-      gctx.clearRect(0,0,w,h);
-
-      // background
-      gctx.fillStyle = "rgba(255,255,255,0.02)";
-      gctx.fillRect(0,0,w,h);
-
-      const cellW = w / N;
-      const cellH = h / N;
-
-      const pix = tctx.getImageData(0,0,N,N).data;
-      for (let y=0; y<N; y++){
-        for (let x=0; x<N; x++){
-          const i = (y*N + x) * 4;
-          const a = pix[i+3];
-          if (a === 0) continue;
-          gctx.fillStyle = `rgb(${pix[i]},${pix[i+1]},${pix[i+2]})`;
-          gctx.fillRect(x*cellW, y*cellH, cellW, cellH);
-        }
-      }
-
-      // grid lines
-      gctx.strokeStyle = "rgba(255,255,255,0.18)";
-      gctx.lineWidth = 1;
-      for (let i=0; i<=N; i++){
-        gctx.beginPath();
-        gctx.moveTo(i*cellW, 0);
-        gctx.lineTo(i*cellW, h);
-        gctx.stroke();
-
-        gctx.beginPath();
-        gctx.moveTo(0, i*cellH);
-        gctx.lineTo(w, i*cellH);
-        gctx.stroke();
-      }
-    }
-
-    function renderTiledPreview() {
-      const w = previewCanvas.width, h = previewCanvas.height;
-      pctx.clearRect(0,0,w,h);
-
-      pctx.fillStyle = "rgba(255,255,255,0.02)";
-      pctx.fillRect(0,0,w,h);
-
-      // tile size in screen pixels
-      const tilePx = Math.floor(w / 6); // 6 tiles across
-      pctx.imageSmoothingEnabled = false;
-
-      // draw texCanvas scaled up, repeated
-      for (let y=0; y<h; y += tilePx){
-        for (let x=0; x<w; x += tilePx){
-          pctx.drawImage(texCanvas, x, y, tilePx, tilePx);
+          // Draw the original drawing canvas into the slot
+          pctx.drawImage(drawCanvas, drawX, drawY, TILE_SIZE, TILE_SIZE);
         }
       }
     }
 
-    function showStep2() {
-      convertToGrid();
-      renderGridCanvas();
-      renderTiledPreview();
+    // --- SAVE LOGIC ---
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      // To ensure AR looks exactly like the preview, we will generate 
+      // a LARGE single texture (1024x1024) containing the tiled pattern
+      // and save THAT as the image. This makes ar.html much simpler.
 
-      step1.style.display = "none";
-      step2.style.display = "grid";
+      // 1. Create a temporary canvas for the texture
+      const texCanvas = document.createElement("canvas");
+      texCanvas.width = 1024;
+      texCanvas.height = 1024;
+      const tctx = texCanvas.getContext("2d");
 
-      status.textContent = `Step 2: Grid preview (${N}×${N}) → Open AR when ready.`;
-    }
+      // 2. Fill Background
+      tctx.fillStyle = bgColorInput.value;
+      tctx.fillRect(0, 0, 1024, 1024);
 
-    document.getElementById("toGrid").addEventListener("click", showStep2);
+      // 3. Tile parameters for the texture
+      const mode = tileModeInput.value;
+      // We want high res tiles on the texture. 
+      // Let's say 4x4 tiles (256px each) for good detail
+      const REPEAT = 6; 
+      const TILE_SIZE = 1024 / REPEAT; 
+      
+      // 4. Draw Tiles onto Texture
+      for (let y = 0; y < REPEAT + 2; y++) { // +2 buffer for offsets
+        for (let x = 0; x < REPEAT + 2; x++) {
+          let drawX = (x - 1) * TILE_SIZE; // Start slightly offscreen
+          let drawY = (y - 1) * TILE_SIZE;
 
-    document.getElementById("backToDraw").addEventListener("click", () => {
-      step2.style.display = "none";
-      step1.style.display = "grid";
-      status.textContent = "Step 1: Draw (freehand) → Next to convert into a grid.";
-    });
+          if (mode === 'brick') {
+            if (y % 2 === 1) drawX -= TILE_SIZE / 2;
+          } else if (mode === 'hex') {
+            drawY = (y - 1) * (TILE_SIZE * 0.85);
+            if (y % 2 === 1) drawX -= TILE_SIZE / 2;
+          }
 
-    // If user changes grid size while in step 2, reconvert live
-    gridSizeSel.addEventListener("change", () => {
-      if (step2.style.display !== "none") {
-        showStep2();
+          tctx.drawImage(drawCanvas, drawX, drawY, TILE_SIZE, TILE_SIZE);
+        }
       }
+
+      // 5. Save to LocalStorage
+      const dataURL = texCanvas.toDataURL("image/png");
+      
+      // We save this as the 'pattern_png'. 
+      // Note: We are overwriting the old 'pattern_png' logic.
+      // ar.html will need to just display this image directly.
+      localStorage.setItem("pattern_png", dataURL);
+      
+      // Flag to tell ar.html this is a pre-tiled texture
+      localStorage.setItem("pattern_mode", "pre-tiled");
+
+      // 6. Go to AR
+      location.href = "ar.html";
     });
 
-    // Export grid texture (scaled up, crisp)
-    document.getElementById("exportGrid").addEventListener("click", () => {
-      const out = document.createElement("canvas");
-      const scale = 40;
-      out.width = N * scale;
-      out.height = N * scale;
-      const octx = out.getContext("2d");
-      octx.imageSmoothingEnabled = false;
-      octx.drawImage(texCanvas, 0, 0, out.width, out.height);
-
-      const a = document.createElement("a");
-      a.download = `pattern_${N}x${N}.png`;
-      a.href = out.toDataURL("image/png");
-      a.click();
-    });
-    // Save to localStorage and open AR page
-
-    // Save to localStorage and open AR page
-    document.getElementById("openAR").addEventListener("click", () => {
-      // store the tiny texture as PNG dataURL
-      localStorage.setItem("pattern_png", texCanvas.toDataURL("image/png"));
-      localStorage.setItem("pattern_N", String(N));
-      window.location.href = "./ar.html";
-    });
   </script>
 </body>
 </html>
