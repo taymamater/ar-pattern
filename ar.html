@@ -15,11 +15,10 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent; /* Let the camera feed show through */
+      background: transparent;
       font-family: system-ui, -apple-system, Segoe UI, Roboto;
     }
 
-    /* Ensure camera video and render canvas fill the viewport */
     video, .a-canvas {
       position: fixed !important;
       top: 0 !important;
@@ -29,68 +28,33 @@
       object-fit: cover !important;
     }
 
-    /* Place the MindAR camera feed behind the AR canvas */
-    #mindar-video,
-    video {
-      z-index: 0 !important;
-    }
-
-    /* Make the A-Frame canvas transparent and above the video */
-    .a-canvas {
-      z-index: 1 !important;
-      background: transparent !important;
-      pointer-events: none;
-    }
-
-    /* Ensure the a-scene itself has no background */
-    a-scene {
-      background: transparent !important;
-    }
+    #mindar-video, video { z-index: 0 !important; }
+    .a-canvas { z-index: 1 !important; background: transparent !important; pointer-events: none; }
+    a-scene { background: transparent !important; }
 
     #overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
       background: rgba(0, 0, 0, 0.75);
-      color: rgba(255, 255, 255, 0.92);
-      text-align: center;
-      padding: 18px;
+      color: white; text-align: center; padding: 18px;
     }
     .card {
-      max-width: 420px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 18px;
-      padding: 16px;
+      max-width: 420px; background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 18px; padding: 16px;
     }
     .btn {
-      display: inline-block;
-      margin-top: 12px;
-      background: rgba(255, 255, 255, 0.22);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      color: rgba(255, 255, 255, 0.92);
-      padding: 10px 12px;
-      border-radius: 12px;
+      display: inline-block; margin-top: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white; padding: 10px 12px; border-radius: 12px;
       cursor: pointer;
-      user-select: none;
-      font-size: 14px;
     }
     #hint {
-      position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
-      z-index: 40;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      color: rgba(255, 255, 255, 0.92);
-      padding: 10px 12px;
-      border-radius: 14px;
-      backdrop-filter: blur(8px);
-      text-align: center;
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40;
+      background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white; padding: 10px 12px; border-radius: 14px;
+      backdrop-filter: blur(8px); text-align: center;
     }
   </style>
 </head>
@@ -98,24 +62,24 @@
 <body>
   <div id="overlay">
     <div class="card">
-      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">AR View (MindAR)</div>
-      <div style="opacity:.9">Tap Start, allow camera, then point at your image marker.</div>
+      <div style="font-weight:700; font-size:18px;">AR View</div>
+      <p style="opacity:.9; margin: 8px 0;">Ensure "targets.mind" is in the same folder as this file.</p>
       <div class="btn" id="start">Start AR</div>
       <div class="btn" onclick="location.href='./'">Back</div>
     </div>
   </div>
 
-  <div id="hint">Loading pattern…</div>
+  <div id="hint">Waiting for start...</div>
 
   <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
   <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
   <script>
-    // Register a component to use a <canvas> as a dynamic texture in A‑Frame
+    // 1. Dynamic Texture Component
     AFRAME.registerComponent("dynamic-canvas-texture", {
       schema: { canvas: { type: "selector" }, pixelate: { type: "boolean", default: true } },
       init() {
-        const canvas  = this.data.canvas;
+        const canvas = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
         if (this.data.pixelate) {
           texture.magFilter = THREE.NearestFilter;
@@ -123,135 +87,138 @@
         }
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
-        const apply = () => {
+        
+        this.el.addEventListener('object3dset', () => {
           const mesh = this.el.getObject3D("mesh");
-          if (!mesh) return;
-          mesh.traverse((node) => {
-            if (!node.isMesh) return;
-            node.material.map = texture;
-            node.material.needsUpdate = true;
-          });
-          this.texture = texture;
-        };
-        if (this.el.getObject3D("mesh")) apply();
-        else this.el.addEventListener("object3dset", apply);
+          if (mesh) {
+            mesh.traverse((node) => {
+              if (node.isMesh) {
+                node.material.map = texture;
+                node.material.needsUpdate = true;
+              }
+            });
+          }
+        });
+        this.texture = texture;
       },
       tick() { if (this.texture) this.texture.needsUpdate = true; }
     });
 
-    const hint       = document.getElementById("hint");
-    const texCanvas  = document.getElementById("texCanvas");
-    const tctx       = texCanvas.getContext("2d");
+    // 2. Variables & Setup
+    const hint = document.getElementById("hint");
+    const texCanvas = document.getElementById("texCanvas");
+    const tctx = texCanvas.getContext("2d");
     const tileCanvas = document.getElementById("tileCanvas");
-    const tileCtx    = tileCanvas.getContext("2d");
+    const tileCtx = tileCanvas.getContext("2d");
 
-    const png  = localStorage.getItem("pattern_png");
-    const nStr = localStorage.getItem("pattern_N") || "16";
-    const N    = Math.max(2, parseInt(nStr, 10) || 16);
-
-    // Change REPEAT if you want more or fewer repeats on the marker plane
+    const png = localStorage.getItem("pattern_png");
+    const N = Math.max(2, parseInt(localStorage.getItem("pattern_N") || "16", 10));
     const REPEAT = 6;
 
+    // 3. Texture Generation Logic
     function renderTiledTexture() {
-      const S = tileCanvas.width; // 1024
+      const S = tileCanvas.width;
       tileCtx.imageSmoothingEnabled = false;
-      // Fill with black so the background under the pattern is black
-      tileCtx.clearRect(0, 0, S, S);
       tileCtx.fillStyle = "#000000";
       tileCtx.fillRect(0, 0, S, S);
 
-      // Each tile is N cells wide but scaled up
       const cellPx = Math.max(1, Math.floor(S / (N * REPEAT)));
       const tilePx = N * cellPx;
-      const used   = tilePx * REPEAT;
+      const used = tilePx * REPEAT;
       const offset = Math.floor((S - used) / 2);
 
       for (let y = 0; y < REPEAT; y++) {
         for (let x = 0; x < REPEAT; x++) {
-          tileCtx.drawImage(texCanvas, 0, 0, N, N,
-                            offset + x * tilePx, offset + y * tilePx,
-                            tilePx, tilePx);
+          tileCtx.drawImage(texCanvas, 0, 0, N, N, offset + x * tilePx, offset + y * tilePx, tilePx, tilePx);
         }
       }
     }
 
     async function loadPattern() {
-      if (!png) {
-        hint.textContent = "No saved pattern found. Go back and create one first.";
-        return false;
-      }
-      texCanvas.width  = N;
-      texCanvas.height = N;
-
+      if (!png) { hint.textContent = "No pattern found!"; return false; }
+      texCanvas.width = N; texCanvas.height = N;
       const img = new Image();
-      img.src   = png;
+      img.src = png;
       await img.decode();
-
       tctx.imageSmoothingEnabled = false;
       tctx.clearRect(0, 0, N, N);
       tctx.drawImage(img, 0, 0, N, N);
-
-      // Build the tiled canvas once
       renderTiledTexture();
-      hint.textContent = "Ready. Tap Start AR and point at your marker.";
+      hint.textContent = "Pattern ready. Tap Start.";
       return true;
     }
 
+    // 4. AR Initialization
     function mountMindARScene() {
-      // NOTE: Updated path to match the root directory structure of your uploaded files
-      const targetSrc = "targets.mind";
+      // NOTE: Ensure 'targets.mind' is in the root directory
+      const targetSrc = "targets.mind"; 
 
-      document.body.insertAdjacentHTML("beforeend", `
+      hint.textContent = "Initializing AR...";
+
+      const sceneHTML = `
         <a-scene
-          mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false;"
+          mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false; filterMinCF:0.0001; filterBeta: 0.001;"
           embedded
           color-space="sRGB"
-          renderer="colorManagement: true, physicallyCorrectLights; alpha: true;"
+          renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true;"
           vr-mode-ui="enabled: false"
           device-orientation-permission-ui="enabled: false"
         >
           <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
+          
           <a-entity mindar-image-target="targetIndex: 0" id="targetEntity">
             <a-plane
+              width="1" height="1"
               position="0 0 0"
               rotation="0 0 0"
-              width="1"
-              height="1"
               material="shader: flat; transparent: true; opacity: 1; side: double;"
               dynamic-canvas-texture="canvas: #tileCanvas; pixelate: true;"
             ></a-plane>
           </a-entity>
         </a-scene>
-      `);
+      `;
 
-      // Wait until the <a-scene> is fully loaded before starting MindAR
+      document.body.insertAdjacentHTML("beforeend", sceneHTML);
+
       const sceneEl = document.querySelector("a-scene");
-      sceneEl.addEventListener("loaded", async () => {
-        const mindarSystem = sceneEl.systems["mindar-image-system"];
-        await mindarSystem.start();
-        hint.textContent = "Camera running ✅ Point at your marker.";
+      const targetEl = document.getElementById("targetEntity");
+
+      // -- Event Listeners for Debugging --
+      sceneEl.addEventListener("arReady", () => {
+        hint.textContent = "✅ System Ready! Point at marker.";
+      });
+      
+      sceneEl.addEventListener("arError", (e) => {
+        hint.textContent = "❌ AR Error: " + (e.detail.error || "Check targets.mind path");
       });
 
-      // Update hint text on marker detection events
-      const targetEl = document.getElementById("targetEntity");
       targetEl.addEventListener("targetFound", () => {
-        hint.textContent = "Marker found ✅ Pattern tiled on marker.";
+        hint.textContent = "🎯 MARKER DETECTED!";
       });
+      
       targetEl.addEventListener("targetLost", () => {
-        hint.textContent = "Marker lost — point back at the marker.";
+        hint.textContent = "👀 Searching for marker...";
+      });
+
+      // Start the system
+      sceneEl.addEventListener("loaded", async () => {
+        try {
+          const system = sceneEl.systems["mindar-image-system"];
+          await system.start(); 
+        } catch (err) {
+          hint.textContent = "❌ Failed to start: " + err;
+        }
       });
     }
 
+    // 5. App Entry
     (async () => {
-      // Load the saved pattern from Step 2
-      await loadPattern();
-
-      document.getElementById("start").addEventListener("click", () => {
-        document.getElementById("overlay").style.display = "none";
-        // Build the MindAR scene and start tracking once loaded
-        mountMindARScene();
-      });
+      if (await loadPattern()) {
+        document.getElementById("start").addEventListener("click", () => {
+          document.getElementById("overlay").style.display = "none";
+          mountMindARScene();
+        });
+      }
     })();
   </script>
 </body>
