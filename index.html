@@ -12,20 +12,21 @@
       overflow: hidden; background: #111; color: white;
     }
     
-    /* --- STEP CONTAINERS --- */
     .step {
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
       transition: transform 0.4s ease;
+      background: #111;
     }
     .hidden-left { transform: translateX(-100%); }
     .hidden-right { transform: translateX(100%); }
 
-    /* --- STEP 1: DRAWING --- */
+    /* --- STEP 1: DRAW --- */
     #draw-container {
       flex: 1; position: relative;
-      background: #222; /* Canvas background */
+      background: #222; 
       touch-action: none; cursor: crosshair;
+      overflow: hidden;
     }
     canvas { display: block; }
 
@@ -36,59 +37,54 @@
       display: flex; align-items: center; justify-content: center;
       overflow: hidden;
     }
-    /* The canvas that shows the tiled preview */
-    #previewCanvas {
-      width: 100%; height: 100%;
-      object-fit: cover;
-    }
+    #previewCanvas { width: 100%; height: 100%; object-fit: cover; }
 
-    /* --- UI CONTROLS --- */
+    /* --- UI BARS --- */
     .ui-bar {
       z-index: 10;
       background: rgba(0,0,0,0.85);
       backdrop-filter: blur(10px);
-      padding: 16px;
-      display: flex; gap: 12px;
+      padding: 12px;
+      display: flex; gap: 10px;
       align-items: center; justify-content: space-between;
       border-top: 1px solid rgba(255,255,255,0.15);
     }
     .top-bar {
-      position: absolute; top: 0; left: 0; right: 0;
-      justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.15);
+      border-bottom: 1px solid rgba(255,255,255,0.15);
       border-top: none;
+      justify-content: center;
     }
-
     h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.5px; opacity: 0.9; }
 
-    /* Buttons */
+    /* CONTROLS */
     .btn {
       background: #eee; color: #111; border: none;
-      padding: 10px 18px; border-radius: 20px;
-      font-weight: 600; font-size: 14px; cursor: pointer;
+      padding: 10px 16px; border-radius: 20px;
+      font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;
     }
     .btn:active { transform: scale(0.96); }
-    .btn-outline { background: transparent; border: 1px solid #666; color: #eee; }
-    
+    .btn-icon { padding: 10px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;}
+
     /* Inputs */
-    .control-group {
-      display: flex; flex-direction: column; gap: 4px; flex: 1;
-    }
-    label { font-size: 11px; text-transform: uppercase; color: #aaa; letter-spacing: 1px; }
+    .control-group { display: flex; flex-direction: column; gap: 2px; }
+    label { font-size: 10px; text-transform: uppercase; color: #aaa; letter-spacing: 0.5px; }
     
     select, input[type="color"] {
       background: #333; border: 1px solid #555;
-      color: white; padding: 8px; border-radius: 8px;
-      font-size: 14px; width: 100%; outline: none;
+      color: white; padding: 0 4px; border-radius: 6px;
+      font-size: 14px; height: 32px; outline: none;
     }
-    input[type="color"] { height: 36px; padding: 2px; }
-
+    input[type="color"] { width: 40px; padding: 2px; }
+    
+    /* Hidden file input */
+    #imgUpload { display: none; }
   </style>
 </head>
 <body>
 
   <div id="step1" class="step">
     <div class="ui-bar top-bar">
-      <h2>1. Draw Your Tile</h2>
+      <h2>1. Create Tile</h2>
     </div>
 
     <div id="draw-container">
@@ -96,15 +92,29 @@
     </div>
 
     <div class="ui-bar">
-      <button class="btn btn-outline" id="clearBtn">Clear</button>
+      <div class="control-group">
+        <label>Color</label>
+        <input type="color" id="brushColor" value="#ffffff">
+      </div>
+
+      <div class="control-group">
+        <label>Image</label>
+        <button class="btn btn-icon" id="uploadBtn" style="background:#444; color:white;">
+          📂
+        </button>
+        <input type="file" id="imgUpload" accept="image/*">
+      </div>
+
       <div style="flex:1"></div>
+      
+      <button class="btn" id="clearBtn" style="background:transparent; border:1px solid #666; color:#ccc; margin-right:8px;">Clear</button>
       <button class="btn" id="toStep2">Next &rarr;</button>
     </div>
   </div>
 
   <div id="step2" class="step hidden-right">
     <div class="ui-bar top-bar">
-      <h2>2. Customize Pattern</h2>
+      <h2>2. Style Pattern</h2>
     </div>
 
     <div id="preview-container">
@@ -112,23 +122,23 @@
     </div>
 
     <div class="ui-bar" style="flex-wrap: wrap;">
-      <div class="control-group" style="max-width: 60px;">
-        <label>BG</label>
+      <div class="control-group">
+        <label>Background</label>
         <input type="color" id="bgColor" value="#000000">
       </div>
 
-      <div class="control-group">
-        <label>Tiling</label>
-        <select id="tileMode">
-          <option value="grid">Grid</option>
+      <div class="control-group" style="flex:1">
+        <label>Pattern Style</label>
+        <select id="tileMode" style="width:100%">
+          <option value="grid">Grid (Basic)</option>
           <option value="brick">Brick (Offset)</option>
-          <option value="hex">Hex (Overlap)</option>
+          <option value="hex">Hex (Packed)</option>
         </select>
       </div>
 
-      <div style="width: 100%; height: 8px;"></div> <button class="btn btn-outline" id="backBtn">&larr; Edit</button>
+      <div style="width: 100%; height: 8px;"></div> <button class="btn" id="backBtn" style="background:transparent; border:1px solid #666; color:#ccc;">&larr; Edit</button>
       <div style="flex:1"></div>
-      <button class="btn" id="saveBtn">Save & View AR</button>
+      <button class="btn" id="saveBtn">View in AR &rarr;</button>
     </div>
   </div>
 
@@ -136,28 +146,44 @@
     // --- VARIABLES ---
     const drawCanvas = document.getElementById("drawCanvas");
     const ctx = drawCanvas.getContext("2d");
-    
     const previewCanvas = document.getElementById("previewCanvas");
     const pctx = previewCanvas.getContext("2d");
 
     let isDrawing = false;
     let lastX = 0; let lastY = 0;
 
-    // --- SETUP DRAWING CANVAS ---
+    // --- 1. DRAWING LOGIC ---
     function resizeDrawCanvas() {
       const container = document.getElementById("draw-container");
-      drawCanvas.width = container.clientWidth;
-      drawCanvas.height = container.clientHeight;
-      // Re-apply styles after resize
-      ctx.lineWidth = 15;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "#ffffff";
+      // Only resize if dimensions actually changed to avoid clearing user work
+      if (drawCanvas.width !== container.clientWidth || drawCanvas.height !== container.clientHeight) {
+        // Save current drawing
+        const saved = drawCanvas.toDataURL();
+        drawCanvas.width = container.clientWidth;
+        drawCanvas.height = container.clientHeight;
+        
+        // Restore styles
+        ctx.lineWidth = 12;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = document.getElementById("brushColor").value;
+
+        // Restore image (optional, but good UX)
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0);
+        img.src = saved;
+      }
     }
     window.addEventListener("resize", resizeDrawCanvas);
-    resizeDrawCanvas();
+    // Initial size
+    setTimeout(resizeDrawCanvas, 10);
 
-    // --- DRAWING EVENTS ---
+    // Brush Color
+    document.getElementById("brushColor").addEventListener("input", (e) => {
+      ctx.strokeStyle = e.target.value;
+    });
+
+    // Drawing Events
     function startDraw(e) {
       isDrawing = true;
       const { x, y } = getPos(e);
@@ -165,7 +191,7 @@
     }
     function draw(e) {
       if (!isDrawing) return;
-      e.preventDefault(); // Stop scrolling on mobile
+      e.preventDefault(); 
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(lastX, lastY);
@@ -193,12 +219,46 @@
       ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
     });
 
-    // --- STEP NAVIGATION ---
+    // --- 2. UPLOAD IMAGE LOGIC ---
+    const uploadBtn = document.getElementById("uploadBtn");
+    const fileInput = document.getElementById("imgUpload");
+
+    uploadBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // Center and fit the image on the canvas
+          const aspect = img.width / img.height;
+          let drawW = drawCanvas.width;
+          let drawH = drawCanvas.width / aspect;
+
+          if (drawH > drawCanvas.height) {
+            drawH = drawCanvas.height;
+            drawW = drawCanvas.height * aspect;
+          }
+
+          const drawX = (drawCanvas.width - drawW) / 2;
+          const drawY = (drawCanvas.height - drawH) / 2;
+
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // --- 3. STEP NAVIGATION ---
     const step1 = document.getElementById("step1");
     const step2 = document.getElementById("step2");
 
     document.getElementById("toStep2").addEventListener("click", () => {
-      renderPattern(); // Generate the preview
+      renderPatternPreview(); 
       step1.classList.add("hidden-left");
       step2.classList.remove("hidden-right");
     });
@@ -208,111 +268,83 @@
       step1.classList.remove("hidden-left");
     });
 
-    // --- PATTERN GENERATION (STEP 2) ---
+    // --- 4. PREVIEW & GENERATION ---
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
 
-    bgColorInput.addEventListener("input", renderPattern);
-    tileModeInput.addEventListener("change", renderPattern);
+    bgColorInput.addEventListener("input", renderPatternPreview);
+    tileModeInput.addEventListener("change", renderPatternPreview);
 
-    function renderPattern() {
-      // 1. Resize preview canvas to fill screen
+    function renderPatternPreview() {
+      // Setup Preview Canvas
       const container = document.getElementById("preview-container");
       previewCanvas.width = container.clientWidth;
       previewCanvas.height = container.clientHeight;
 
-      // 2. Fill Background
+      // Draw Background
       pctx.fillStyle = bgColorInput.value;
       pctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-      // 3. Prepare the Tile
-      // We take the drawing canvas and treat it as our tile
-      // We'll scale it down to make a pattern
-      const TILE_SIZE = 120; // Size of one tile on the preview screen
+      // We tile the 'drawCanvas' content
+      const TILE_SIZE = 120;
       const mode = tileModeInput.value;
-
-      // 4. Loop and Tile
-      // Calculate how many tiles fit
+      
       const cols = Math.ceil(previewCanvas.width / TILE_SIZE) + 1;
       const rows = Math.ceil(previewCanvas.height / TILE_SIZE) + 1;
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
-          let drawX = x * TILE_SIZE;
-          let drawY = y * TILE_SIZE;
+          let dx = x * TILE_SIZE;
+          let dy = y * TILE_SIZE;
 
-          // Apply Offsets based on mode
           if (mode === 'brick') {
-            // Shift every odd row by half a tile
-            if (y % 2 === 1) {
-              drawX -= TILE_SIZE / 2;
-            }
+            if (y % 2 === 1) dx -= TILE_SIZE / 2;
           } else if (mode === 'hex') {
-            // Shift odd rows AND overlap vertically to pack tighter
-            drawY = y * (TILE_SIZE * 0.85); // Overlap vertically
-            if (y % 2 === 1) {
-              drawX -= TILE_SIZE / 2;
-            }
+            dy = y * (TILE_SIZE * 0.85); // Vertical overlap
+            if (y % 2 === 1) dx -= TILE_SIZE / 2;
           }
 
-          // Draw the original drawing canvas into the slot
-          pctx.drawImage(drawCanvas, drawX, drawY, TILE_SIZE, TILE_SIZE);
+          pctx.drawImage(drawCanvas, dx, dy, TILE_SIZE, TILE_SIZE);
         }
       }
     }
 
-    // --- SAVE LOGIC ---
+    // --- 5. SAVE FOR AR ---
     document.getElementById("saveBtn").addEventListener("click", () => {
-      // To ensure AR looks exactly like the preview, we will generate 
-      // a LARGE single texture (1024x1024) containing the tiled pattern
-      // and save THAT as the image. This makes ar.html much simpler.
-
-      // 1. Create a temporary canvas for the texture
+      // Create a High-Res (1024x1024) Texture for AR
       const texCanvas = document.createElement("canvas");
       texCanvas.width = 1024;
       texCanvas.height = 1024;
       const tctx = texCanvas.getContext("2d");
 
-      // 2. Fill Background
+      // Fill BG
       tctx.fillStyle = bgColorInput.value;
       tctx.fillRect(0, 0, 1024, 1024);
 
-      // 3. Tile parameters for the texture
-      const mode = tileModeInput.value;
-      // We want high res tiles on the texture. 
-      // Let's say 4x4 tiles (256px each) for good detail
+      // Tile Params
       const REPEAT = 6; 
-      const TILE_SIZE = 1024 / REPEAT; 
-      
-      // 4. Draw Tiles onto Texture
-      for (let y = 0; y < REPEAT + 2; y++) { // +2 buffer for offsets
+      const TILE_SIZE = 1024 / REPEAT;
+      const mode = tileModeInput.value;
+
+      // Draw Tiles
+      for (let y = 0; y < REPEAT + 2; y++) {
         for (let x = 0; x < REPEAT + 2; x++) {
-          let drawX = (x - 1) * TILE_SIZE; // Start slightly offscreen
-          let drawY = (y - 1) * TILE_SIZE;
+          let dx = (x - 1) * TILE_SIZE;
+          let dy = (y - 1) * TILE_SIZE;
 
           if (mode === 'brick') {
-            if (y % 2 === 1) drawX -= TILE_SIZE / 2;
+            if (y % 2 === 1) dx -= TILE_SIZE / 2;
           } else if (mode === 'hex') {
-            drawY = (y - 1) * (TILE_SIZE * 0.85);
-            if (y % 2 === 1) drawX -= TILE_SIZE / 2;
+            dy = (y - 1) * (TILE_SIZE * 0.85);
+            if (y % 2 === 1) dx -= TILE_SIZE / 2;
           }
 
-          tctx.drawImage(drawCanvas, drawX, drawY, TILE_SIZE, TILE_SIZE);
+          tctx.drawImage(drawCanvas, dx, dy, TILE_SIZE, TILE_SIZE);
         }
       }
 
-      // 5. Save to LocalStorage
-      const dataURL = texCanvas.toDataURL("image/png");
-      
-      // We save this as the 'pattern_png'. 
-      // Note: We are overwriting the old 'pattern_png' logic.
-      // ar.html will need to just display this image directly.
-      localStorage.setItem("pattern_png", dataURL);
-      
-      // Flag to tell ar.html this is a pre-tiled texture
-      localStorage.setItem("pattern_mode", "pre-tiled");
-
-      // 6. Go to AR
+      // Save and Go
+      localStorage.setItem("pattern_png", texCanvas.toDataURL("image/png"));
       location.href = "ar.html";
     });
 
