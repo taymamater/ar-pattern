@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Pattern AR</title>
 
   <!-- iPhone-friendly pinned versions -->
@@ -19,13 +20,23 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto;
     }
 
-    /* Force full-screen camera + canvas (fixes "tiny rectangle then black") */
-    #sceneMount, a-scene, canvas {
+    #sceneMount {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    /* Only size A-Frame’s render canvas (NOT all canvases) */
+    .a-canvas {
       position: fixed !important;
       inset: 0 !important;
       width: 100% !important;
       height: 100% !important;
     }
+
+    /* AR.js camera video element (force inline + fullscreen) */
     video {
       position: fixed !important;
       inset: 0 !important;
@@ -79,9 +90,7 @@
   <div id="overlay">
     <div class="card">
       <div style="font-weight:700; font-size:18px; margin-bottom:6px;">Step 3: AR View</div>
-      <div style="opacity:.9">
-        Tap Start, allow camera, then point at your printed marker.
-      </div>
+      <div style="opacity:.9">Tap Start, allow camera, then point at your printed marker.</div>
       <div class="btn" id="start">Start AR</div>
       <div class="btn" onclick="location.href='./'">Back</div>
     </div>
@@ -97,37 +106,30 @@
   <script>
     // A-Frame component: canvas as a live texture
     AFRAME.registerComponent("dynamic-canvas-texture", {
-      schema: {
-        canvas: { type: "selector" },
-        pixelate: { type: "boolean", default: true }
-      },
+      schema: { canvas: { type: "selector" }, pixelate: { type: "boolean", default: true } },
       init() {
         const canvas = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
-
         if (this.data.pixelate) {
           texture.magFilter = THREE.NearestFilter;
           texture.minFilter = THREE.NearestFilter;
         }
-
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
 
-        const mesh = this.el.getObject3D("mesh");
-        if (mesh) this.applyTexture(mesh, texture);
-        else this.el.addEventListener("object3dset", () => {
-          const m = this.el.getObject3D("mesh");
-          if (m) this.applyTexture(m, texture);
-        });
+        const apply = () => {
+          const mesh = this.el.getObject3D("mesh");
+          if (!mesh) return;
+          mesh.traverse((node) => {
+            if (!node.isMesh) return;
+            node.material.map = texture;
+            node.material.needsUpdate = true;
+          });
+          this.texture = texture;
+        };
 
-        this.texture = texture;
-      },
-      applyTexture(mesh, texture) {
-        mesh.traverse((node) => {
-          if (!node.isMesh) return;
-          node.material.map = texture;
-          node.material.needsUpdate = true;
-        });
+        if (this.el.getObject3D("mesh")) apply();
+        else this.el.addEventListener("object3dset", apply);
       },
       tick() {
         if (this.texture) this.texture.needsUpdate = true;
@@ -148,7 +150,6 @@
         hint.textContent = "No saved pattern found. Go back and create one first.";
         return false;
       }
-
       texCanvas.width = N;
       texCanvas.height = N;
 
@@ -164,18 +165,34 @@
       return true;
     }
 
+    // iOS Safari fix: force AR.js camera <video> to be inline + playing
+    function forceIOSInlineCameraVideo() {
+      const v = document.querySelector("video");
+      if (!v) return false;
+
+      v.setAttribute("playsinline", "");
+      v.setAttribute("webkit-playsinline", "");
+      v.setAttribute("muted", "");
+      v.setAttribute("autoplay", "");
+      v.muted = true;
+      v.autoplay = true;
+      v.playsInline = true;
+
+      const p = v.play();
+      if (p && p.catch) p.catch(() => {});
+      return true;
+    }
+
     function mountScene() {
-      // IMPORTANT: update this if your file name differs
-      const patternUrl = "markers/pattern.patt";
+      const patternUrl = "markers/pattern.patt"; // confirm this filename exists on GitHub!
 
       document.getElementById("sceneMount").innerHTML = `
         <a-scene
           background="transparent: true"
-          device-orientation-permission-ui="enabled: false"
           embedded
-          renderer="antialias: true; alpha: true"
           vr-mode-ui="enabled: false"
-          arjs="sourceType: webcam; debugUIEnabled: false;">
+          renderer="antialias: true; alpha: true"
+          arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
 
           <a-marker
             id="marker"
@@ -209,7 +226,20 @@
         </a-scene>
       `;
 
-      // wire marker status text
+      // Try a few times until AR.js injects the <video>
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        if (forceIOSInlineCameraVideo()) {
+          hint.textContent = "Camera running ✅ Point at the marker.";
+          clearInterval(timer);
+        } else if (tries > 50) {
+          hint.textContent = "Camera video not starting. Make sure Safari has Camera permission, then reload.";
+          clearInterval(timer);
+        }
+      }, 100);
+
+      // Marker events
       setTimeout(() => {
         const marker = document.getElementById("marker");
         if (!marker) return;
@@ -224,6 +254,9 @@
       document.getElementById("start").addEventListener("click", () => {
         document.getElementById("overlay").style.display = "none";
         mountScene();
+
+        // extra immediate attempt (inside user gesture = best chance on iOS)
+        forceIOSInlineCameraVideo();
       });
     })();
   </script>
