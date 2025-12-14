@@ -125,6 +125,7 @@
 
   <!-- AR Scene -->
   <a-scene
+    device-orientation-permission-ui="enabled: false"
     embedded
     renderer="antialias: true; alpha: true"
     vr-mode-ui="enabled: false"
@@ -163,7 +164,8 @@
 
     </a-marker>
 
-    <a-entity camera></a-entity>
+    <!-- Disable motion/gyro controls so iOS doesn't show the motion permission prompt -->
+    <a-entity camera look-controls="enabled: false"></a-entity>
   </a-scene>
 
   <script>
@@ -429,3 +431,4 @@
   </script>
 </body>
 </html>
+
