@@ -6,13 +6,21 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Pattern AR (MindAR)</title>
 
+  <!-- A‑Frame and MindAR -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto;
+    }
 
-    /* Fix iOS “black strip” / letterboxing */
+    /* Ensure camera video and render canvas fill the viewport on iOS */
     video, .a-canvas {
       position: fixed !important;
       top: 0 !important;
@@ -22,43 +30,50 @@
       object-fit: cover !important;
     }
 
-    #overlay{
-      position: fixed; inset: 0; z-index: 50;
-      display:flex; align-items:center; justify-content:center;
-      background: rgba(0,0,0,.75);
-      color: rgba(255,255,255,.92);
-      text-align:center;
+    #overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.75);
+      color: rgba(255, 255, 255, 0.92);
+      text-align: center;
       padding: 18px;
     }
-    .card{
+    .card {
       max-width: 420px;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 18px;
       padding: 16px;
     }
-    .btn{
-      display:inline-block;
+    .btn {
+      display: inline-block;
       margin-top: 12px;
-      background: rgba(255,255,255,.22);
-      border: 1px solid rgba(255,255,255,.25);
-      color: rgba(255,255,255,.92);
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: rgba(255, 255, 255, 0.92);
       padding: 10px 12px;
       border-radius: 12px;
-      cursor:pointer;
-      user-select:none;
+      cursor: pointer;
+      user-select: none;
       font-size: 14px;
     }
-    #hint{
-      position: fixed; left: 12px; right: 12px; bottom: 12px;
+    #hint {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
       z-index: 40;
-      background: rgba(0,0,0,.45);
-      border: 1px solid rgba(255,255,255,.18);
-      color: rgba(255,255,255,.92);
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.92);
       padding: 10px 12px;
       border-radius: 14px;
       backdrop-filter: blur(8px);
-      text-align:center;
+      text-align: center;
     }
   </style>
 </head>
@@ -75,17 +90,17 @@
 
   <div id="hint">Loading pattern…</div>
 
-  <!-- tiny saved pattern -->
+  <!-- Small canvas to store the pixel pattern (from Step 2) -->
   <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
-  <!-- tiled texture -->
+  <!-- Power‑of‑two tiled texture (repeats pattern cleanly) -->
   <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
   <script>
-    // Canvas-as-texture for A-Frame
+    // Register a component to use a <canvas> as a dynamic texture in A‑Frame
     AFRAME.registerComponent("dynamic-canvas-texture", {
       schema: { canvas: { type: "selector" }, pixelate: { type: "boolean", default: true } },
       init() {
-        const canvas = this.data.canvas;
+        const canvas  = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
         if (this.data.pixelate) {
           texture.magFilter = THREE.NearestFilter;
@@ -93,7 +108,6 @@
         }
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
-
         const apply = () => {
           const mesh = this.el.getObject3D("mesh");
           if (!mesh) return;
@@ -104,75 +118,81 @@
           });
           this.texture = texture;
         };
-
         if (this.el.getObject3D("mesh")) apply();
         else this.el.addEventListener("object3dset", apply);
       },
       tick() { if (this.texture) this.texture.needsUpdate = true; }
     });
 
-    const hint = document.getElementById("hint");
-    const texCanvas = document.getElementById("texCanvas");
-    const tctx = texCanvas.getContext("2d");
-
+    const hint       = document.getElementById("hint");
+    const texCanvas  = document.getElementById("texCanvas");
+    const tctx       = texCanvas.getContext("2d");
     const tileCanvas = document.getElementById("tileCanvas");
-    const tileCtx = tileCanvas.getContext("2d");
+    const tileCtx    = tileCanvas.getContext("2d");
 
-    const png = localStorage.getItem("pattern_png");
+    const png  = localStorage.getItem("pattern_png");
     const nStr = localStorage.getItem("pattern_N") || "16";
-    const N = Math.max(2, parseInt(nStr, 10) || 16);
+    const N    = Math.max(2, parseInt(nStr, 10) || 16);
 
-    // change this if you want more/less repetition
+    // Change REPEAT if you want more or fewer repeats on the marker plane
     const REPEAT = 6;
 
     function renderTiledTexture() {
       const S = tileCanvas.width; // 1024
       tileCtx.imageSmoothingEnabled = false;
-      tileCtx.clearRect(0,0,S,S);
+      // Clear to transparent
+      tileCtx.clearRect(0, 0, S, S);
+      tileCtx.fillStyle = "rgba(0,0,0,0)";
+      tileCtx.fillRect(0, 0, S, S);
 
+      // Each tile is N cells wide but scaled up
       const cellPx = Math.max(1, Math.floor(S / (N * REPEAT)));
       const tilePx = N * cellPx;
-      const used = tilePx * REPEAT;
-      const offset = Math.floor((S - used)/2);
+      const used   = tilePx * REPEAT;
+      const offset = Math.floor((S - used) / 2);
 
-      for (let y=0; y<REPEAT; y++){
-        for (let x=0; x<REPEAT; x++){
-          tileCtx.drawImage(texCanvas, 0,0,N,N, offset + x*tilePx, offset + y*tilePx, tilePx, tilePx);
+      for (let y = 0; y < REPEAT; y++) {
+        for (let x = 0; x < REPEAT; x++) {
+          tileCtx.drawImage(texCanvas, 0, 0, N, N,
+                            offset + x * tilePx, offset + y * tilePx,
+                            tilePx, tilePx);
         }
       }
     }
 
     async function loadPattern() {
-      if (!png) { hint.textContent = "No saved pattern found. Go back and create one first."; return false; }
-      texCanvas.width = N; texCanvas.height = N;
+      if (!png) {
+        hint.textContent = "No saved pattern found. Go back and create one first.";
+        return false;
+      }
+      texCanvas.width  = N;
+      texCanvas.height = N;
 
       const img = new Image();
-      img.src = png;
+      img.src   = png;
       await img.decode();
 
       tctx.imageSmoothingEnabled = false;
-      tctx.clearRect(0,0,N,N);
+      tctx.clearRect(0, 0, N, N);
       tctx.drawImage(img, 0, 0, N, N);
 
+      // Build the tiled canvas once
       renderTiledTexture();
       hint.textContent = "Ready. Tap Start AR and point at your marker.";
       return true;
     }
 
     function mountMindARScene() {
-      // IMPORTANT: put your compiled file here:
-      // /targets/targets.mind
-      // cache-bust when you recompile
+      // Use your compiled mind target file here. Bump ?v= to force refresh after recompiling.
       const targetSrc = "./targets/targets.mind?v=1";
 
       document.body.insertAdjacentHTML("beforeend", `
         <a-scene
-          mindar-image="imageTargetSrc: ${targetSrc}; autoStart: true;"
-          color-space="sRGB"
-          renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true;"
+          mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false;"
+          renderer="alpha: true; antialias: true; physicallyCorrectLights: true;"
           vr-mode-ui="enabled: false"
-          device-orientation-permission-ui="enabled: false">
-
+          device-orientation-permission-ui="enabled: false"
+        >
           <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
           <a-entity mindar-image-target="targetIndex: 0" id="targetEntity">
@@ -182,23 +202,34 @@
               width="1"
               height="1"
               material="shader: flat; transparent: true; opacity: 1; side: double;"
-              dynamic-canvas-texture="canvas: #tileCanvas; pixelate: true;">
-            </a-plane>
+              dynamic-canvas-texture="canvas: #tileCanvas; pixelate: true;"
+            ></a-plane>
           </a-entity>
         </a-scene>
       `);
 
-      // MindAR events
-      const t = document.getElementById("targetEntity");
-      t.addEventListener("targetFound", () => hint.textContent = "Marker found ✅ Pattern tiled on marker.");
-      t.addEventListener("targetLost", () => hint.textContent = "Marker lost — point back at the marker.");
+      // Start MindAR after the scene is inserted
+      const sceneEl     = document.querySelector("a-scene");
+      const mindarSystem = sceneEl.systems["mindar-image-system"];
+      mindarSystem.start();
+
+      // Update hint text on marker detection events
+      const targetEl = document.getElementById("targetEntity");
+      targetEl.addEventListener("targetFound", () => {
+        hint.textContent = "Marker found ✅ Pattern tiled on marker.";
+      });
+      targetEl.addEventListener("targetLost", () => {
+        hint.textContent = "Marker lost — point back at the marker.";
+      });
     }
 
     (async () => {
+      // Load the saved pattern from Step 2
       await loadPattern();
 
-      document.getElementById("start").addEventListener("click", async () => {
+      document.getElementById("start").addEventListener("click", () => {
         document.getElementById("overlay").style.display = "none";
+        // Build the MindAR scene and start tracking
         mountMindARScene();
         hint.textContent = "Camera running ✅ Point at your marker.";
       });
