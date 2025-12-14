@@ -110,10 +110,12 @@
       init() {
         const canvas = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
+
         if (this.data.pixelate) {
           texture.magFilter = THREE.NearestFilter;
           texture.minFilter = THREE.NearestFilter;
         }
+
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
 
@@ -184,7 +186,8 @@
     }
 
     function mountScene() {
-      const patternUrl = "markers/pattern.patt"; // confirm this filename exists on GitHub!
+      // Cache bust so iPhone doesn’t keep using an old marker pattern
+      const patternUrl = "markers/pattern.patt?v=4";
 
       document.getElementById("sceneMount").innerHTML = `
         <a-scene
@@ -198,18 +201,14 @@
             id="marker"
             type="pattern"
             url="${patternUrl}"
-            emitevents="true"
-            smooth="true"
-            smoothCount="8"
-            smoothTolerance="0.01"
-            smoothThreshold="2">
+            emitevents="true">
 
             <a-plane
               rotation="-90 0 0"
               position="0 0.01 0"
               width="1.05"
               height="1.05"
-              material="transparent: true; opacity: 0.98;"
+              material="shader: flat; transparent: true; opacity: 0.98; side: double;"
               dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;">
             </a-plane>
 
@@ -218,8 +217,9 @@
               position="0 0.009 0"
               radius-inner="0.52"
               radius-outer="0.54"
-              material="color: #ffffff; opacity: 0.35; transparent: true">
+              material="shader: flat; color: #ffffff; opacity: 0.35; transparent: true; side: double;">
             </a-ring>
+
           </a-marker>
 
           <a-entity camera look-controls="enabled: false"></a-entity>
@@ -243,8 +243,16 @@
       setTimeout(() => {
         const marker = document.getElementById("marker");
         if (!marker) return;
-        marker.addEventListener("markerFound", () => hint.textContent = "Marker found ✅ Pattern placed in AR.");
-        marker.addEventListener("markerLost", () => hint.textContent = "Marker lost — point back at the marker.");
+
+        marker.addEventListener("markerFound", () => {
+          console.log("markerFound");
+          hint.textContent = "Marker found ✅ Pattern placed in AR.";
+        });
+
+        marker.addEventListener("markerLost", () => {
+          console.log("markerLost");
+          hint.textContent = "Marker lost — point back at the marker.";
+        });
       }, 0);
     }
 
