@@ -4,13 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Pattern AR (MindAR)</title>
+  <title>Pattern AR</title>
 
-  <!-- A-Frame -->
+  <!-- iPhone-friendly pinned versions -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-
-  <!-- MindAR (Image Tracking for A-Frame) -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
   <style>
     html, body {
@@ -22,13 +20,40 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto;
     }
 
-    /* full-screen camera + render canvas */
-    video, .a-canvas {
+    #sceneMount {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    /* AR.js usually injects #arjs-video (and sometimes #arjs-canvas). Force it visible + full screen. */
+    #arjs-video, video {
       position: fixed !important;
       inset: 0 !important;
       width: 100% !important;
       height: 100% !important;
       object-fit: cover !important;
+      z-index: 0 !important;
+    }
+
+    #arjs-canvas {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 0 !important;
+    }
+
+    /* A-Frame render canvas ABOVE the camera, but transparent */
+    .a-canvas {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1 !important;
+      background: transparent !important;
     }
 
     #overlay{
@@ -75,8 +100,8 @@
 <body>
   <div id="overlay">
     <div class="card">
-      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">AR View (MindAR)</div>
-      <div style="opacity:.9">Tap Start, allow camera, then point at your marker.</div>
+      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">Step 3: AR View</div>
+      <div style="opacity:.9">Tap Start, allow camera, then point at your printed marker.</div>
       <div class="btn" id="start">Start AR</div>
       <div class="btn" onclick="location.href='./'">Back</div>
     </div>
@@ -84,44 +109,16 @@
 
   <div id="hint">Loading pattern…</div>
 
-  <!-- Hidden texture canvas (NxN) -->
+  <!-- Your original tiny pattern -->
   <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
 
-  <!-- A-Frame / MindAR Scene -->
-  <a-scene
-    id="scene"
-    embedded
-    vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-    renderer="colorManagement: true; alpha: true"
-    mindar-image="imageTargetSrc: ./targets/marker.mind; autoStart: false; uiScanning: yes; uiLoading: yes; uiError: yes;"
-  >
-    <!-- This entity “locks” to the tracked image (targetIndex 0 = first image you compiled) -->
-    <a-entity id="target" mindar-image-target="targetIndex: 0">
-      <!-- Your drawn pattern as a plane on top of the target -->
-      <a-plane
-        id="patternPlane"
-        position="0 0 0"
-        width="1"
-        height="1"
-        material="shader: flat; transparent: true; opacity: 1; side: double;"
-        dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;"
-      ></a-plane>
+  <!-- NEW: a power-of-two tiled texture canvas (repeats cleanly on iPhone/WebGL) -->
+  <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
-      <!-- Optional border so you can SEE the target alignment -->
-      <a-ring
-        position="0 0 0.001"
-        radius-inner="0.49"
-        radius-outer="0.51"
-        material="shader: flat; color: #ffffff; opacity: 0.35; transparent: true; side: double;"
-      ></a-ring>
-    </a-entity>
-
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-  </a-scene>
+  <div id="sceneMount"></div>
 
   <script>
-    // Canvas → live texture (same idea you used before)
+    // A-Frame component: canvas as a live texture
     AFRAME.registerComponent("dynamic-canvas-texture", {
       schema: { canvas: { type: "selector" }, pixelate: { type: "boolean", default: true } },
       init() {
@@ -133,6 +130,9 @@
           texture.minFilter = THREE.NearestFilter;
         }
 
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
         const apply = () => {
           const mesh = this.el.getObject3D("mesh");
           if (!mesh) return;
@@ -140,7 +140,6 @@
             if (!node.isMesh) return;
             node.material.map = texture;
             node.material.needsUpdate = true;
-            node.material.transparent = true;
           });
           this.texture = texture;
         };
@@ -148,17 +147,51 @@
         if (this.el.getObject3D("mesh")) apply();
         else this.el.addEventListener("object3dset", apply);
       },
-      tick() { if (this.texture) this.texture.needsUpdate = true; }
+      tick() {
+        if (this.texture) this.texture.needsUpdate = true;
+      }
     });
 
     const hint = document.getElementById("hint");
     const texCanvas = document.getElementById("texCanvas");
     const tctx = texCanvas.getContext("2d");
 
-    // Read BOTH: new keys (arpattern_*) and your old keys (pattern_*) so nothing breaks
-    const png = localStorage.getItem("arpattern_png") || localStorage.getItem("pattern_png");
-    const nStr = localStorage.getItem("arpattern_N") || localStorage.getItem("pattern_N") || "16";
+    const tileCanvas = document.getElementById("tileCanvas");
+    const tileCtx = tileCanvas.getContext("2d");
+
+    // Load saved pattern from Step 2
+    const png = localStorage.getItem("pattern_png");
+    const nStr = localStorage.getItem("pattern_N") || "16";
     const N = Math.max(2, parseInt(nStr, 10) || 16);
+
+    // How many times the pattern repeats across the marker plane
+    const REPEAT = 6;
+
+    function renderTiledTexture() {
+      // tileCanvas is 1024x1024 (power-of-two) to avoid WebGL repeat issues on iOS
+      const S = tileCanvas.width;
+
+      tileCtx.imageSmoothingEnabled = false;
+      tileCtx.clearRect(0, 0, S, S);
+
+      // choose an integer cell size so pixels stay crisp
+      const cellPx = Math.max(1, Math.floor(S / (N * REPEAT)));
+      const tilePx = N * cellPx;                 // one pattern tile in pixels
+      const used = tilePx * REPEAT;              // total used area
+      const offset = Math.floor((S - used) / 2); // center it
+
+      for (let y = 0; y < REPEAT; y++) {
+        for (let x = 0; x < REPEAT; x++) {
+          tileCtx.drawImage(
+            texCanvas,
+            0, 0, N, N,
+            offset + x * tilePx,
+            offset + y * tilePx,
+            tilePx, tilePx
+          );
+        }
+      }
+    }
 
     async function loadPattern() {
       if (!png) {
@@ -174,42 +207,111 @@
       await img.decode();
 
       tctx.imageSmoothingEnabled = false;
-      tctx.clearRect(0, 0, N, N);
+      tctx.clearRect(0,0,N,N);
       tctx.drawImage(img, 0, 0, N, N);
+
+      renderTiledTexture();
 
       hint.textContent = "Ready. Tap Start AR, then point at the marker.";
       return true;
     }
 
+    // iOS Safari helper: make the camera video play inline
+    function forceIOSInlineCameraVideo() {
+      const v = document.querySelector("#arjs-video") || document.querySelector("video");
+      if (!v) return false;
+
+      v.setAttribute("playsinline", "");
+      v.setAttribute("webkit-playsinline", "");
+      v.setAttribute("muted", "");
+      v.setAttribute("autoplay", "");
+      v.muted = true;
+      v.autoplay = true;
+      v.playsInline = true;
+
+      const p = v.play();
+      if (p && p.catch) p.catch(() => {});
+      return true;
+    }
+
+    function mountScene() {
+      // IMPORTANT: this must match your real file path in the repo
+      const patternUrl = "markers/pattern.patt?v=1";
+
+      document.getElementById("sceneMount").innerHTML = `
+        <a-scene
+          id="arScene"
+          embedded
+          vr-mode-ui="enabled: false"
+          background="transparent: true"
+          renderer="antialias: true; alpha: true"
+          arjs="sourceType: webcam; debugUIEnabled: false;">
+
+          <a-marker
+            id="marker"
+            type="pattern"
+            url="${patternUrl}"
+            emitevents="true">
+
+            <!-- Use the TILED canvas, not the tiny one -->
+            <a-plane
+              rotation="-90 0 0"
+              position="0 0.01 0"
+              width="1.05"
+              height="1.05"
+              material="shader: flat; transparent: true; opacity: 1; side: double;"
+              dynamic-canvas-texture="canvas: #tileCanvas; pixelate: true;">
+            </a-plane>
+
+            <a-ring
+              rotation="-90 0 0"
+              position="0 0.009 0"
+              radius-inner="0.52"
+              radius-outer="0.54"
+              material="shader: flat; color: #ffffff; opacity: 0.35; transparent: true; side: double;">
+            </a-ring>
+
+          </a-marker>
+
+          <a-entity camera look-controls="enabled: false"></a-entity>
+        </a-scene>
+      `;
+
+      // keep trying until AR.js injects the camera <video>
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        if (forceIOSInlineCameraVideo()) {
+          hint.textContent = "Camera running ✅ Point at your marker.";
+          clearInterval(timer);
+        } else if (tries > 50) {
+          hint.textContent = "Camera video not starting. Check Safari camera permission, then reload.";
+          clearInterval(timer);
+        }
+      }, 100);
+
+      // marker events
+      setTimeout(() => {
+        const marker = document.getElementById("marker");
+        if (!marker) return;
+
+        marker.addEventListener("markerFound", () => {
+          hint.textContent = "Marker found ✅ Pattern tiled on marker.";
+        });
+
+        marker.addEventListener("markerLost", () => {
+          hint.textContent = "Marker lost — point back at the marker.";
+        });
+      }, 0);
+    }
+
     (async () => {
       await loadPattern();
 
-      const sceneEl = document.getElementById("scene");
-      const targetEl = document.getElementById("target");
-
-      targetEl.addEventListener("targetFound", () => {
-        hint.textContent = "Marker found ✅ Pattern placed in AR.";
-      });
-      targetEl.addEventListener("targetLost", () => {
-        hint.textContent = "Marker lost — point back at the marker.";
-      });
-
-      document.getElementById("start").addEventListener("click", async () => {
+      document.getElementById("start").addEventListener("click", () => {
         document.getElementById("overlay").style.display = "none";
-
-        // Start MindAR inside user gesture (best for iOS Safari)
-        const arSystem = sceneEl.systems["mindar-image-system"];
-        await arSystem.start();
-
-        hint.textContent = "Camera running ✅ Scan the marker.";
-      });
-
-      // If user switches apps / locks screen
-      document.addEventListener("visibilitychange", () => {
-        const arSystem = sceneEl.systems["mindar-image-system"];
-        if (!arSystem) return;
-        if (document.hidden) arSystem.pause();
-        else arSystem.unpause();
+        mountScene();
+        forceIOSInlineCameraVideo(); // best chance on iOS (user gesture)
       });
     })();
   </script>
