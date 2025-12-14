@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Pattern AR</title>
+
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto; }
+    #overlay{
+      position: fixed; inset: 0; z-index: 50;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.75);
+      color: rgba(255,255,255,.92);
+      text-align:center;
+      padding: 18px;
+    }
+    .card{
+      max-width: 420px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .btn{
+      display:inline-block;
+      margin-top: 12px;
+      background: rgba(255,255,255,.22);
+      border: 1px solid rgba(255,255,255,.25);
+      color: rgba(255,255,255,.92);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      user-select:none;
+      font-size: 14px;
+    }
+    #hint{
+      position: fixed; left: 12px; right: 12px; bottom: 12px;
+      z-index: 40;
+      background: rgba(0,0,0,.45);
+      border: 1px solid rgba(255,255,255,.18);
+      color: rgba(255,255,255,.92);
+      padding: 10px 12px;
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      text-align:center;
+    }
+    a-scene { position: fixed; inset: 0; z-index: 0; }
+  </style>
+</head>
+
+<body>
+  <div id="overlay">
+    <div class="card">
+      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">Step 3: AR View</div>
+      <div style="opacity:.9">
+        Tap Start, allow camera, then point at your printed marker.
+      </div>
+      <div class="btn" id="start">Start AR</div>
+      <div class="btn" onclick="location.href='./'">Back</div>
+    </div>
+  </div>
+
+  <div id="hint">Loading pattern…</div>
+
+  <!-- Hidden texture canvas (NxN) -->
+  <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
+
+  <div id="sceneMount"></div>
+
+  <script>
+    // A-Frame component: canvas as a live texture
+    AFRAME.registerComponent("dynamic-canvas-texture", {
+      schema: {
+        canvas: { type: "selector" },
+        pixelate: { type: "boolean", default: true }
+      },
+      init() {
+        const canvas = this.data.canvas;
+        const texture = new THREE.CanvasTexture(canvas);
+
+        if (this.data.pixelate) {
+          texture.magFilter = THREE.NearestFilter;
+          texture.minFilter = THREE.NearestFilter;
+        }
+
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        const mesh = this.el.getObject3D("mesh");
+        if (mesh) this.applyTexture(mesh, texture);
+        else this.el.addEventListener("object3dset", () => {
+          const m = this.el.getObject3D("mesh");
+          if (m) this.applyTexture(m, texture);
+        });
+
+        this.texture = texture;
+      },
+      applyTexture(mesh, texture) {
+        mesh.traverse((node) => {
+          if (!node.isMesh) return;
+          node.material.map = texture;
+          node.material.needsUpdate = true;
+        });
+      },
+      tick() {
+        if (this.texture) this.texture.needsUpdate = true;
+      }
+    });
+
+    const hint = document.getElementById("hint");
+    const texCanvas = document.getElementById("texCanvas");
+    const tctx = texCanvas.getContext("2d");
+
+    // Load saved pattern from Step 2
+    const png = localStorage.getItem("pattern_png");
+    const nStr = localStorage.getItem("pattern_N") || "16";
+    const N = Math.max(2, parseInt(nStr, 10) || 16);
+
+    async function loadPattern() {
+      if (!png) {
+        hint.textContent = "No saved pattern found. Go back and create one first.";
+        return false;
+      }
+
+      texCanvas.width = N;
+      texCanvas.height = N;
+
+      const img = new Image();
+      img.src = png;
+      await img.decode();
+
+      tctx.imageSmoothingEnabled = false;
+      tctx.clearRect(0,0,N,N);
+      tctx.drawImage(img, 0, 0, N, N);
+
+      hint.textContent = "Ready. Tap Start AR, then point at the marker.";
+      return true;
+    }
+
+    function mountScene() {
+      // IMPORTANT: update this if your file name differs
+      const patternUrl = "markers/pattern.patt";
+
+      document.getElementById("sceneMount").innerHTML = `
+        <a-scene
+          device-orientation-permission-ui="enabled: false"
+          embedded
+          renderer="antialias: true; alpha: true"
+          vr-mode-ui="enabled: false"
+          arjs="sourceType: webcam; debugUIEnabled: false;">
+
+          <a-marker
+            id="marker"
+            type="pattern"
+            url="${patternUrl}"
+            emitevents="true"
+            smooth="true"
+            smoothCount="8"
+            smoothTolerance="0.01"
+            smoothThreshold="2">
+
+            <a-plane
+              rotation="-90 0 0"
+              position="0 0.01 0"
+              width="1.05"
+              height="1.05"
+              material="transparent: true; opacity: 0.98;"
+              dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;">
+            </a-plane>
+
+            <a-ring
+              rotation="-90 0 0"
+              position="0 0.009 0"
+              radius-inner="0.52"
+              radius-outer="0.54"
+              material="color: #ffffff; opacity: 0.35; transparent: true">
+            </a-ring>
+          </a-marker>
+
+          <a-entity camera look-controls="enabled: false"></a-entity>
+        </a-scene>
+      `;
+
+      // wire marker status text
+      setTimeout(() => {
+        const marker = document.getElementById("marker");
+        if (!marker) return;
+        marker.addEventListener("markerFound", () => hint.textContent = "Marker found ✅ Pattern placed in AR.");
+        marker.addEventListener("markerLost", () => hint.textContent = "Marker lost — point back at the marker.");
+      }, 0);
+    }
+
+    (async () => {
+      await loadPattern();
+
+      document.getElementById("start").addEventListener("click", async () => {
+        // Remove overlay first so it never blocks anything
+        document.getElementById("overlay").style.display = "none";
+        mountScene();
+      });
+    })();
+  </script>
+</body>
+</html>
