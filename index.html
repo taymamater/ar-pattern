@@ -28,7 +28,45 @@
       touch-action: none; cursor: crosshair;
       overflow: hidden;
     }
-    canvas { display: block; }
+
+    /* Layers */
+    #backingImg {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; 
+      z-index: 0;
+      display: none; 
+      pointer-events: none; opacity: 0.8;
+    }
+    #drawCanvas { 
+      position: absolute; inset: 0; 
+      z-index: 10; 
+      display: block; 
+    }
+
+    /* --- PATTERN DRAWER --- */
+    #patternDrawer {
+      position: absolute; bottom: 80px; 
+      left: 10px; right: 10px;
+      height: 90px;
+      background: rgba(30,30,30,0.95);
+      border: 1px solid #444; border-radius: 12px;
+      z-index: 30;
+      display: flex; align-items: center; gap: 10px;
+      overflow-x: auto; padding: 0 10px;
+      transform: translateY(150%); /* Hidden by default */
+      transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    }
+    #patternDrawer.open { transform: translateY(0); }
+    
+    .pattern-thumb {
+      width: 60px; height: 60px; flex-shrink: 0;
+      border-radius: 8px; border: 2px solid transparent;
+      object-fit: cover; cursor: pointer;
+      background: #000;
+    }
+    .pattern-thumb:hover { border-color: white; }
 
     /* --- STEP 2: PREVIEW --- */
     #preview-container {
@@ -41,11 +79,11 @@
 
     /* --- UI BARS --- */
     .ui-bar {
-      z-index: 10;
+      z-index: 20;
       background: rgba(0,0,0,0.85);
       backdrop-filter: blur(10px);
       padding: 12px;
-      display: flex; gap: 10px;
+      display: flex; gap: 8px;
       align-items: center; justify-content: space-between;
       border-top: 1px solid rgba(255,255,255,0.15);
     }
@@ -58,15 +96,26 @@
 
     /* CONTROLS */
     .btn {
-      background: #eee; color: #111; border: none;
+      background: #333; color: #eee; border: 1px solid #555;
       padding: 10px 16px; border-radius: 20px;
       font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s;
     }
     .btn:active { transform: scale(0.96); }
-    .btn-icon { padding: 10px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;}
+    
+    .btn-icon { 
+      padding: 0; width: 40px; height: 34px; 
+      display: flex; align-items: center; justify-content: center; 
+      font-size: 18px;
+    }
+    .tool-active {
+      background: #eee !important;
+      color: #111 !important;
+      border-color: #fff !important;
+    }
 
     .control-group { display: flex; flex-direction: column; gap: 2px; }
-    label { font-size: 10px; text-transform: uppercase; color: #aaa; letter-spacing: 0.5px; }
+    label { font-size: 9px; text-transform: uppercase; color: #aaa; letter-spacing: 0.5px; }
     
     select, input[type="color"] {
       background: #333; border: 1px solid #555;
@@ -86,7 +135,11 @@
     </div>
 
     <div id="draw-container">
+      <img id="backingImg" alt="Background" crossorigin="anonymous">
       <canvas id="drawCanvas"></canvas>
+      
+      <div id="patternDrawer">
+        </div>
     </div>
 
     <div class="ui-bar">
@@ -96,17 +149,26 @@
       </div>
 
       <div class="control-group">
-        <label>Image</label>
-        <button class="btn btn-icon" id="uploadBtn" style="background:#444; color:white;">
-          📂
-        </button>
+        <label>Tools</label>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-icon tool-active" id="brushBtn" title="Brush">✏️</button>
+          <button class="btn btn-icon" id="eraserBtn" title="Eraser">🧼</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Base</label>
+        <div style="display:flex; gap:6px;">
+           <button class="btn btn-icon" id="libBtn" title="Pattern Library">📚</button>
+           <button class="btn btn-icon" id="uploadBtn" title="Upload Image">📂</button>
+        </div>
         <input type="file" id="imgUpload" accept="image/*">
       </div>
 
       <div style="flex:1"></div>
       
-      <button class="btn" id="clearBtn" style="background:transparent; border:1px solid #666; color:#ccc; margin-right:8px;">Clear</button>
-      <button class="btn" id="toStep2">Next &rarr;</button>
+      <button class="btn" id="clearBtn" style="background:transparent; border:1px solid #666; color:#ccc; margin-right:6px;">Clear</button>
+      <button class="btn" id="toStep2" style="background:white; color:black; border:none;">Next &rarr;</button>
     </div>
   </div>
 
@@ -138,7 +200,7 @@
 
       <button class="btn" id="backBtn" style="background:transparent; border:1px solid #666; color:#ccc;">&larr; Edit</button>
       <div style="flex:1"></div>
-      <button class="btn" id="saveBtn">View in AR &rarr;</button>
+      <button class="btn" id="saveBtn" style="background:white; color:black;">View in AR &rarr;</button>
     </div>
   </div>
 
@@ -146,16 +208,61 @@
     // --- VARIABLES ---
     const drawCanvas = document.getElementById("drawCanvas");
     const ctx = drawCanvas.getContext("2d");
+    const backingImg = document.getElementById("backingImg");
     const previewCanvas = document.getElementById("previewCanvas");
     const pctx = previewCanvas.getContext("2d");
-
+    
+    // Tools
     let isDrawing = false;
     let lastX = 0; let lastY = 0;
+    let currentMode = 'brush'; 
+    const brushBtn = document.getElementById("brushBtn");
+    const eraserBtn = document.getElementById("eraserBtn");
+
+    // ============================================================
+    //  👇 UPDATE YOUR IMAGE NAMES HERE 👇
+    //  Ensure you have a folder named 'patterns' with these files
+    // ============================================================
+    const presetPatterns = [
+      "patterns/1.jpg", 
+      "patterns/2.jpg",
+      "patterns/3.jpg",
+      "patterns/4.jpg",
+      "patterns/5.jpg"
+    ];
+    // ============================================================
+
+    // --- INIT PATTERN DRAWER ---
+    const patternDrawer = document.getElementById("patternDrawer");
+    const libBtn = document.getElementById("libBtn");
+
+    // Populate drawer
+    presetPatterns.forEach(src => {
+      const img = document.createElement("img");
+      img.src = src;
+      img.className = "pattern-thumb";
+      // Handle loading errors just in case
+      img.onerror = () => { img.style.display = 'none'; }; 
+      img.addEventListener("click", () => {
+        setBackingImage(src);
+        patternDrawer.classList.remove("open");
+      });
+      patternDrawer.appendChild(img);
+    });
+
+    // Toggle Drawer
+    libBtn.addEventListener("click", () => {
+      patternDrawer.classList.toggle("open");
+    });
+    // Close drawer when interacting with canvas
+    drawCanvas.addEventListener("mousedown", () => patternDrawer.classList.remove("open"));
+    drawCanvas.addEventListener("touchstart", () => patternDrawer.classList.remove("open"));
+
 
     // --- 1. SETUP CANVAS ---
     function resizeDrawCanvas() {
       const container = document.getElementById("draw-container");
-      // Only resize if dimensions actually changed
+      // Prevent resizing from erasing data
       if (drawCanvas.width !== container.clientWidth || drawCanvas.height !== container.clientHeight) {
         const saved = drawCanvas.toDataURL();
         drawCanvas.width = container.clientWidth;
@@ -164,7 +271,7 @@
         ctx.lineWidth = 12;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.strokeStyle = document.getElementById("brushColor").value;
+        updateToolSettings();
 
         const img = new Image();
         img.onload = () => ctx.drawImage(img, 0, 0);
@@ -172,13 +279,30 @@
       }
     }
     window.addEventListener("resize", resizeDrawCanvas);
-    setTimeout(resizeDrawCanvas, 10); // Init
+    setTimeout(resizeDrawCanvas, 10);
 
-    document.getElementById("brushColor").addEventListener("input", (e) => {
-      ctx.strokeStyle = e.target.value;
+    // --- 2. TOOLS ---
+    function updateToolSettings() {
+      if (currentMode === 'brush') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = document.getElementById("brushColor").value;
+        brushBtn.classList.add("tool-active");
+        eraserBtn.classList.remove("tool-active");
+      } else {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = "rgba(0,0,0,1)";
+        brushBtn.classList.remove("tool-active");
+        eraserBtn.classList.add("tool-active");
+      }
+    }
+    brushBtn.addEventListener("click", () => { currentMode = 'brush'; updateToolSettings(); });
+    eraserBtn.addEventListener("click", () => { currentMode = 'eraser'; updateToolSettings(); });
+    document.getElementById("brushColor").addEventListener("input", () => {
+      if (currentMode === 'eraser') currentMode = 'brush';
+      updateToolSettings();
     });
 
-    // --- 2. DRAWING INPUT ---
+    // --- 3. DRAWING LOGIC ---
     function startDraw(e) {
       isDrawing = true;
       const { x, y } = getPos(e);
@@ -202,7 +326,6 @@
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       return { x: clientX - rect.left, y: clientY - rect.top };
     }
-
     drawCanvas.addEventListener("mousedown", startDraw);
     drawCanvas.addEventListener("mousemove", draw);
     drawCanvas.addEventListener("mouseup", endDraw);
@@ -212,86 +335,96 @@
 
     document.getElementById("clearBtn").addEventListener("click", () => {
       ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      // NOTE: We do NOT clear the backing image here, only the drawing.
     });
 
-    // --- 3. UPLOAD IMAGE (FILL/COVER MODE) ---
+    // --- 4. IMAGE HANDLING (Upload & Library) ---
+    function setBackingImage(src) {
+      // Must set crossorigin for externally hosted images (though local files are tricky)
+      backingImg.crossOrigin = "Anonymous";
+      backingImg.src = src;
+      backingImg.style.display = "block";
+    }
+
+    // Upload Handler
     const uploadBtn = document.getElementById("uploadBtn");
     const fileInput = document.getElementById("imgUpload");
-
     uploadBtn.addEventListener("click", () => fileInput.click());
-
     fileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          // Logic to FILL (Cover) the canvas
-          const canvasRatio = drawCanvas.width / drawCanvas.height;
-          const imgRatio = img.width / img.height;
-          
-          let drawW, drawH, drawX, drawY;
-
-          if (imgRatio > canvasRatio) {
-            // Image is wider than canvas: crop sides
-            drawH = drawCanvas.height;
-            drawW = drawCanvas.height * imgRatio;
-            drawX = (drawCanvas.width - drawW) / 2;
-            drawY = 0;
-          } else {
-            // Image is taller than canvas: crop top/bottom
-            drawW = drawCanvas.width;
-            drawH = drawCanvas.width / imgRatio;
-            drawX = 0;
-            drawY = (drawCanvas.height - drawH) / 2;
-          }
-
-          ctx.drawImage(img, drawX, drawY, drawW, drawH);
-        };
-        img.src = event.target.result;
-      };
+      reader.onload = (event) => setBackingImage(event.target.result);
       reader.readAsDataURL(file);
     });
 
-    // --- 4. NAVIGATION ---
+    // --- 5. COMPOSITE & PREVIEW ---
+    function getCompositeCanvas() {
+      const c = document.createElement("canvas");
+      c.width = drawCanvas.width;
+      c.height = drawCanvas.height;
+      const cx = c.getContext("2d");
+
+      // Draw Backing Image (Cover Mode)
+      if (backingImg.style.display !== 'none' && backingImg.src) {
+        const img = backingImg;
+        // Logic to cover the canvas
+        const nw = img.naturalWidth || 100;
+        const nh = img.naturalHeight || 100;
+        const canvasRatio = c.width / c.height;
+        const imgRatio = nw / nh;
+        
+        let dw, dh, dx, dy;
+        if (imgRatio > canvasRatio) {
+          dh = c.height; dw = c.height * imgRatio;
+          dx = (c.width - dw) / 2; dy = 0;
+        } else {
+          dw = c.width; dh = c.width / imgRatio;
+          dx = 0; dy = (c.height - dh) / 2;
+        }
+        
+        try {
+            cx.drawImage(img, dx, dy, dw, dh);
+        } catch(e) {
+            console.error("Could not draw image to canvas (CORS?):", e);
+        }
+      }
+
+      // Draw Strokes
+      cx.drawImage(drawCanvas, 0, 0);
+      return c;
+    }
+
+    // Navigation
     const step1 = document.getElementById("step1");
     const step2 = document.getElementById("step2");
-
     document.getElementById("toStep2").addEventListener("click", () => {
       renderPatternPreview(); 
       step1.classList.add("hidden-left");
       step2.classList.remove("hidden-right");
     });
-
     document.getElementById("backBtn").addEventListener("click", () => {
       step2.classList.add("hidden-right");
       step1.classList.remove("hidden-left");
     });
 
-    // --- 5. PREVIEW GENERATION (NO STRETCH) ---
+    // Preview Render
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
-
     bgColorInput.addEventListener("input", renderPatternPreview);
     tileModeInput.addEventListener("change", renderPatternPreview);
 
     function renderPatternPreview() {
+      const source = getCompositeCanvas();
       const container = document.getElementById("preview-container");
       previewCanvas.width = container.clientWidth;
       previewCanvas.height = container.clientHeight;
 
-      // Fill BG
       pctx.fillStyle = bgColorInput.value;
       pctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-      // --- CALCULATE TILE SIZE RESPECTING ASPECT RATIO ---
-      // We set a fixed Base Size (e.g. width = 120px)
-      // Then we calculate Height based on the Drawing Canvas ratio
       const baseSize = 120; 
-      const ratio = drawCanvas.width / drawCanvas.height;
-      
+      const ratio = source.width / source.height;
       const tileW = baseSize;
       const tileH = baseSize / ratio; 
 
@@ -303,61 +436,51 @@
         for (let x = 0; x < cols; x++) {
           let dx = x * tileW;
           let dy = y * tileH;
-
-          if (mode === 'brick') {
-            if (y % 2 === 1) dx -= tileW / 2;
-          } else if (mode === 'hex') {
-            dy = y * (tileH * 0.85); // Vertical overlap
-            if (y % 2 === 1) dx -= tileW / 2;
-          }
-
-          pctx.drawImage(drawCanvas, dx, dy, tileW, tileH);
-        }
-      }
-    }
-
-    // --- 6. SAVE (HIGH RES, NO STRETCH) ---
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      const texCanvas = document.createElement("canvas");
-      texCanvas.width = 1024;
-      texCanvas.height = 1024;
-      const tctx = texCanvas.getContext("2d");
-
-      tctx.fillStyle = bgColorInput.value;
-      tctx.fillRect(0, 0, 1024, 1024);
-
-      // Same Aspect Ratio Logic for the Texture
-      // We want about 6 columns across the texture
-      const REPEAT_COLS = 6; 
-      const tileW = 1024 / REPEAT_COLS; 
-      const ratio = drawCanvas.width / drawCanvas.height;
-      const tileH = tileW / ratio;
-
-      // Calculate how many rows needed to fill 1024 height
-      const REPEAT_ROWS = Math.ceil(1024 / tileH);
-      const mode = tileModeInput.value;
-
-      // Draw with buffer
-      for (let y = -1; y < REPEAT_ROWS + 2; y++) {
-        for (let x = -1; x < REPEAT_COLS + 2; x++) {
-          let dx = x * tileW;
-          let dy = y * tileH;
-
           if (mode === 'brick') {
             if (y % 2 === 1) dx -= tileW / 2;
           } else if (mode === 'hex') {
             dy = y * (tileH * 0.85);
             if (y % 2 === 1) dx -= tileW / 2;
           }
+          pctx.drawImage(source, dx, dy, tileW, tileH);
+        }
+      }
+    }
 
-          tctx.drawImage(drawCanvas, dx, dy, tileW, tileH);
+    // --- 6. SAVE ---
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      const source = getCompositeCanvas();
+      const texCanvas = document.createElement("canvas");
+      texCanvas.width = 1024; texCanvas.height = 1024;
+      const tctx = texCanvas.getContext("2d");
+
+      tctx.fillStyle = bgColorInput.value;
+      tctx.fillRect(0, 0, 1024, 1024);
+
+      const REPEAT_COLS = 6; 
+      const tileW = 1024 / REPEAT_COLS; 
+      const ratio = source.width / source.height;
+      const tileH = tileW / ratio;
+      const REPEAT_ROWS = Math.ceil(1024 / tileH);
+      const mode = tileModeInput.value;
+
+      for (let y = -1; y < REPEAT_ROWS + 2; y++) {
+        for (let x = -1; x < REPEAT_COLS + 2; x++) {
+          let dx = x * tileW;
+          let dy = y * tileH;
+          if (mode === 'brick') {
+            if (y % 2 === 1) dx -= tileW / 2;
+          } else if (mode === 'hex') {
+            dy = y * (tileH * 0.85);
+            if (y % 2 === 1) dx -= tileW / 2;
+          }
+          tctx.drawImage(source, dx, dy, tileW, tileH);
         }
       }
 
       localStorage.setItem("pattern_png", texCanvas.toDataURL("image/png"));
       location.href = "ar.html";
     });
-
   </script>
 </body>
 </html>
