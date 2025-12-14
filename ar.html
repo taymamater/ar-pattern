@@ -185,9 +185,25 @@
       return true;
     }
 
-    function mountScene() {
-      // Cache bust so iPhone doesn’t keep using an old marker pattern
-      const patternUrl = "markers/pattern.patt?v=4";
+    async function mountScene() {
+      const params = new URLSearchParams(location.search);
+      const useHiro = params.get("hiro") === "1";
+
+      // Build the correct URL relative to THIS page (works even if file is in a folder)
+      const patternUrl = new URL("./markers/pattern.patt", location.href).toString() + "?v=10";
+
+      // Before mounting: confirm pattern.patt is actually reachable (stops silent failures)
+      if (!useHiro) {
+        try {
+          const res = await fetch(patternUrl, { cache: "no-store" });
+          if (!res.ok) throw new Error("pattern.patt not found (HTTP " + res.status + ")");
+          hint.textContent = "Marker file loaded ✅ Point at your marker.";
+        } catch (err) {
+          console.log(err);
+          hint.textContent = "ERROR: Can't load markers/pattern.patt. Fix file/path in GitHub Pages.";
+          return;
+        }
+      }
 
       document.getElementById("sceneMount").innerHTML = `
         <a-scene
@@ -197,30 +213,43 @@
           renderer="antialias: true; alpha: true"
           arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
 
-          <a-marker
-            id="marker"
-            type="pattern"
-            url="${patternUrl}"
-            emitevents="true">
+          ${
+            useHiro
+              ? `
+                <a-marker id="marker" preset="hiro" emitevents="true">
+                  <a-box
+                    position="0 0.5 0"
+                    depth="0.3" height="0.3" width="0.3"
+                    material="shader: flat; color: #00ff88;">
+                  </a-box>
+                </a-marker>
+              `
+              : `
+                <a-marker
+                  id="marker"
+                  type="pattern"
+                  url="${patternUrl}"
+                  emitevents="true">
 
-            <a-plane
-              rotation="-90 0 0"
-              position="0 0.01 0"
-              width="1.05"
-              height="1.05"
-              material="shader: flat; transparent: true; opacity: 0.98; side: double;"
-              dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;">
-            </a-plane>
+                  <a-plane
+                    rotation="-90 0 0"
+                    position="0 0.01 0"
+                    width="1.05"
+                    height="1.05"
+                    material="shader: flat; transparent: true; opacity: 0.98; side: double;"
+                    dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;">
+                  </a-plane>
 
-            <a-ring
-              rotation="-90 0 0"
-              position="0 0.009 0"
-              radius-inner="0.52"
-              radius-outer="0.54"
-              material="shader: flat; color: #ffffff; opacity: 0.35; transparent: true; side: double;">
-            </a-ring>
-
-          </a-marker>
+                  <a-ring
+                    rotation="-90 0 0"
+                    position="0 0.009 0"
+                    radius-inner="0.52"
+                    radius-outer="0.54"
+                    material="shader: flat; color: #ffffff; opacity: 0.35; transparent: true; side: double;">
+                  </a-ring>
+                </a-marker>
+              `
+          }
 
           <a-entity camera look-controls="enabled: false"></a-entity>
         </a-scene>
@@ -231,7 +260,9 @@
       const timer = setInterval(() => {
         tries++;
         if (forceIOSInlineCameraVideo()) {
-          hint.textContent = "Camera running ✅ Point at the marker.";
+          hint.textContent = useHiro
+            ? "Camera running ✅ Show the HIRO marker."
+            : "Camera running ✅ Point at your marker.";
           clearInterval(timer);
         } else if (tries > 50) {
           hint.textContent = "Camera video not starting. Make sure Safari has Camera permission, then reload.";
@@ -245,8 +276,10 @@
         if (!marker) return;
 
         marker.addEventListener("markerFound", () => {
-          console.log("markerFound");
-          hint.textContent = "Marker found ✅ Pattern placed in AR.";
+          console.log("markerFound", useHiro ? "HIRO" : "PATTERN");
+          hint.textContent = useHiro
+            ? "HIRO found ✅ Tracking works. Your custom marker/patt is the issue."
+            : "Marker found ✅ Pattern placed in AR.";
         });
 
         marker.addEventListener("markerLost", () => {
@@ -259,9 +292,9 @@
     (async () => {
       await loadPattern();
 
-      document.getElementById("start").addEventListener("click", () => {
+      document.getElementById("start").addEventListener("click", async () => {
         document.getElementById("overlay").style.display = "none";
-        mountScene();
+        await mountScene();
 
         // extra immediate attempt (inside user gesture = best chance on iOS)
         forceIOSInlineCameraVideo();
