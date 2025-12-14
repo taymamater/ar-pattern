@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>WebAR Pattern Maker</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+  <!-- AR.js for A-Frame (marker tracking) -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto; }
+    .topbar{
+      position: fixed; top: 12px; left: 12px; right: 12px;
+      z-index: 20;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      color: rgba(255,255,255,.92);
+      background: rgba(0,0,0,.45);
+      padding: 10px 12px; border-radius: 14px;
+      backdrop-filter: blur(8px);
+    }
+    .topbar small{ opacity:.85; }
+    .panel{
+      position: fixed; left: 0; right: 0; bottom: 0;
+      z-index: 20;
+      background: linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0));
+      padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+      display:grid;
+      gap: 10px;
+    }
+    .row{ display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; }
+    .btn{
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      color: rgba(255,255,255,.92);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      user-select:none;
+      font-size: 14px;
+    }
+    .btn:active{ transform: scale(.98); }
+    .chip{
+      display:flex; align-items:center; gap:8px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 8px 10px; border-radius: 999px;
+      color: rgba(255,255,255,.92);
+      font-size: 14px;
+    }
+    input[type="color"]{ width: 34px; height: 34px; border: none; background: transparent; padding: 0; }
+    select{
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.25);
+      color: rgba(255,255,255,.92);
+      padding: 8px 10px;
+      border-radius: 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    #editorWrap{
+      display:flex; justify-content:center;
+    }
+    #editorCanvas{
+      width: min(86vw, 340px);
+      height: min(86vw, 340px);
+      border-radius: 16px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.20);
+      touch-action: none;
+    }
+    .hint{
+      text-align:center;
+      color: rgba(255,255,255,.85);
+      font-size: 13px;
+    }
+
+    /* Make the A-Frame canvas sit behind UI */
+    a-scene { position: fixed; inset: 0; z-index: 0; }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div>
+      <div><strong>Pattern Maker WebAR</strong></div>
+      <small id="status">Draw → point camera at your printed grid marker.</small>
+    </div>
+    <div class="chip">
+      Grid
+      <select id="gridSize">
+        <option value="8">8×8</option>
+        <option value="16" selected>16×16</option>
+        <option value="24">24×24</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="editorWrap">
+      <canvas id="editorCanvas" width="340" height="340"></canvas>
+    </div>
+
+    <div class="row">
+      <div class="chip">
+        Color <input id="color" type="color" value="#ff6a00" />
+      </div>
+      <div class="btn" id="eraser">Eraser</div>
+      <div class="btn" id="clear">Clear</div>
+      <label class="btn" for="importImg">Import AI Image</label>
+      <input id="importImg" type="file" accept="image/*" hidden />
+      <div class="btn" id="export">Export PNG</div>
+    </div>
+
+    <div class="hint">
+      Tip: Generate a pattern in <b>ComfyUI</b> → <b>Import AI Image</b> → it will pixel-map onto the grid, then you can edit it by hand.
+    </div>
+  </div>
+
+  <!-- Hidden tiny canvas used as the REAL texture (pixel-perfect) -->
+  <canvas id="texCanvas" width="16" height="16" style="display:none"></canvas>
+
+  <!-- AR Scene -->
+  <a-scene
+    embedded
+    renderer="antialias: true; alpha: true"
+    vr-mode-ui="enabled: false"
+    arjs="sourceType: webcam; debugUIEnabled: false;">
+
+    <!-- Marker -->
+    <a-marker
+      id="marker"
+      type="pattern"
+      url="markers/pattern.patt"
+      emitevents="true"
+      smooth="true"
+      smoothCount="8"
+      smoothTolerance="0.01"
+      smoothThreshold="2">
+
+      <!-- Plane that receives the user's pattern texture -->
+      <a-plane
+        id="patternPlane"
+        rotation="-90 0 0"
+        position="0 0.01 0"
+        width="1.05"
+        height="1.05"
+        material="transparent: true; opacity: 0.98;"
+        dynamic-canvas-texture="canvas: #texCanvas; pixelate: true;">
+      </a-plane>
+
+      <!-- Optional subtle border frame -->
+      <a-ring
+        rotation="-90 0 0"
+        position="0 0.009 0"
+        radius-inner="0.52"
+        radius-outer="0.54"
+        material="color: #ffffff; opacity: 0.35; transparent: true">
+      </a-ring>
+
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    // -----------------------------
+    // A-Frame component: use a <canvas> as a live texture
+    // -----------------------------
+    AFRAME.registerComponent("dynamic-canvas-texture", {
+      schema: {
+        canvas: { type: "selector" },
+        pixelate: { type: "boolean", default: true }
+      },
+      init() {
+        const canvas = this.data.canvas;
+        const texture = new THREE.CanvasTexture(canvas);
+
+        if (this.data.pixelate) {
+          texture.magFilter = THREE.NearestFilter;
+          texture.minFilter = THREE.NearestFilter;
+        }
+
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        const mesh = this.el.getObject3D("mesh");
+        if (mesh) this.applyTexture(mesh, texture);
+        else this.el.addEventListener("object3dset", () => {
+          const m = this.el.getObject3D("mesh");
+          if (m) this.applyTexture(m, texture);
+        });
+
+        this.texture = texture;
+      },
+      applyTexture(mesh, texture) {
+        mesh.traverse((node) => {
+          if (!node.isMesh) return;
+          node.material.map = texture;
+          node.material.needsUpdate = true;
+        });
+      },
+      tick() {
+        // Update every frame (simple + reliable for live drawing)
+        if (this.texture) this.texture.needsUpdate = true;
+      }
+    });
+
+    // -----------------------------
+    // Pattern Maker (grid painting)
+    // -----------------------------
+    const editor = document.getElementById("editorCanvas");
+    const ectx = editor.getContext("2d");
+    const texCanvas = document.getElementById("texCanvas");
+    const tctx = texCanvas.getContext("2d");
+    const gridSizeSel = document.getElementById("gridSize");
+    const colorInput = document.getElementById("color");
+    const status = document.getElementById("status");
+
+    let N = parseInt(gridSizeSel.value, 10);
+    let cellColors = [];   // store colors per cell
+    let isEraser = false;
+    let drawing = false;
+
+    function initGrid(newN) {
+      N = newN;
+      texCanvas.width = N;
+      texCanvas.height = N;
+
+      cellColors = Array.from({ length: N * N }, () => null);
+
+      // Try load from localStorage
+      const saved = localStorage.getItem("pattern_grid_" + N);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === N * N) cellColors = parsed;
+        } catch {}
+      }
+
+      renderEditor();
+      renderTexture();
+    }
+
+    function saveGrid() {
+      localStorage.setItem("pattern_grid_" + N, JSON.stringify(cellColors));
+    }
+
+    function renderEditor() {
+      const w = editor.width, h = editor.height;
+      ectx.clearRect(0,0,w,h);
+
+      // background
+      ectx.fillStyle = "rgba(255,255,255,0.02)";
+      ectx.fillRect(0,0,w,h);
+
+      const cellW = w / N;
+      const cellH = h / N;
+
+      // draw cells
+      for (let y=0; y<N; y++){
+        for (let x=0; x<N; x++){
+          const idx = y*N + x;
+          const c = cellColors[idx];
+          if (c) {
+            ectx.fillStyle = c;
+            ectx.fillRect(x*cellW, y*cellH, cellW, cellH);
+          }
+        }
+      }
+
+      // grid lines
+      ectx.strokeStyle = "rgba(255,255,255,0.18)";
+      ectx.lineWidth = 1;
+
+      for (let i=0; i<=N; i++){
+        ectx.beginPath();
+        ectx.moveTo(i*cellW, 0);
+        ectx.lineTo(i*cellW, h);
+        ectx.stroke();
+
+        ectx.beginPath();
+        ectx.moveTo(0, i*cellH);
+        ectx.lineTo(w, i*cellH);
+        ectx.stroke();
+      }
+    }
+
+    function renderTexture() {
+      // paint exact pixels to tiny texture canvas
+      const img = tctx.createImageData(N, N);
+      for (let i=0; i<cellColors.length; i++){
+        const c = cellColors[i];
+        const base = i * 4;
+        if (!c) {
+          img.data[base+3] = 0; // transparent
+          continue;
+        }
+        const rgb = hexToRgb(c);
+        img.data[base]   = rgb.r;
+        img.data[base+1] = rgb.g;
+        img.data[base+2] = rgb.b;
+        img.data[base+3] = 255;
+      }
+      tctx.putImageData(img, 0, 0);
+    }
+
+    function hexToRgb(hex) {
+      const h = hex.replace("#","");
+      const n = parseInt(h.length === 3 ? h.split("").map(x=>x+x).join("") : h, 16);
+      return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+    }
+
+    function paintAt(clientX, clientY) {
+      const rect = editor.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      const cellX = Math.floor((x / rect.width) * N);
+      const cellY = Math.floor((y / rect.height) * N);
+
+      if (cellX < 0 || cellX >= N || cellY < 0 || cellY >= N) return;
+
+      const idx = cellY * N + cellX;
+      cellColors[idx] = isEraser ? null : colorInput.value;
+
+      renderEditor();
+      renderTexture();
+      saveGrid();
+    }
+
+    editor.addEventListener("pointerdown", (e) => { drawing = true; editor.setPointerCapture(e.pointerId); paintAt(e.clientX, e.clientY); });
+    editor.addEventListener("pointermove", (e) => { if (drawing) paintAt(e.clientX, e.clientY); });
+    editor.addEventListener("pointerup", () => { drawing = false; });
+    editor.addEventListener("pointercancel", () => { drawing = false; });
+
+    document.getElementById("eraser").addEventListener("click", () => {
+      isEraser = !isEraser;
+      status.textContent = isEraser ? "Eraser ON — tap again to draw." : "Draw mode — point camera at marker to see it in AR.";
+    });
+
+    document.getElementById("clear").addEventListener("click", () => {
+      cellColors = Array.from({ length: N * N }, () => null);
+      renderEditor();
+      renderTexture();
+      saveGrid();
+    });
+
+    // Import an AI-generated image and pixel-map it onto the grid
+    document.getElementById("importImg").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await img.decode();
+
+      // Draw into an offscreen canvas at NxN, then read pixels and convert to cells
+      const off = document.createElement("canvas");
+      off.width = N; off.height = N;
+      const offCtx = off.getContext("2d");
+
+      // cover-fit (center crop)
+      const scale = Math.max(N / img.width, N / img.height);
+      const sw = N / scale;
+      const sh = N / scale;
+      const sx = (img.width - sw) / 2;
+      const sy = (img.height - sh) / 2;
+
+      offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, N, N);
+      const data = offCtx.getImageData(0,0,N,N).data;
+
+      for (let i=0; i<N*N; i++){
+        const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
+        if (a < 20) { cellColors[i] = null; continue; }
+        cellColors[i] = rgbToHex(r,g,b);
+      }
+
+      renderEditor();
+      renderTexture();
+      saveGrid();
+      status.textContent = "Imported AI image → mapped to grid. Now you can edit it.";
+      URL.revokeObjectURL(img.src);
+      e.target.value = "";
+    });
+
+    function rgbToHex(r,g,b){
+      const toH = (v)=>v.toString(16).padStart(2,"0");
+      return "#" + toH(r) + toH(g) + toH(b);
+    }
+
+    // Export as PNG (scaled up, crisp pixels)
+    document.getElementById("export").addEventListener("click", () => {
+      const out = document.createElement("canvas");
+      const scale = 40; // 16x16 -> 640px, 24x24 -> 960px
+      out.width = N * scale;
+      out.height = N * scale;
+      const octx = out.getContext("2d");
+      octx.imageSmoothingEnabled = false;
+
+      // draw texCanvas scaled up
+      octx.drawImage(texCanvas, 0, 0, out.width, out.height);
+
+      const a = document.createElement("a");
+      a.download = `pattern_${N}x${N}.png`;
+      a.href = out.toDataURL("image/png");
+      a.click();
+    });
+
+    // Marker status text (nice for demo)
+    const marker = document.getElementById("marker");
+    marker.addEventListener("markerFound", () => {
+      status.textContent = "Marker found ✅ Your pattern is now placed on the printed grid.";
+    });
+    marker.addEventListener("markerLost", () => {
+      status.textContent = "Marker lost — point camera back at the printed grid marker.";
+    });
+
+    gridSizeSel.addEventListener("change", () => {
+      initGrid(parseInt(gridSizeSel.value, 10));
+      status.textContent = `Grid switched to ${N}×${N}.`;
+    });
+
+    // Start
+    initGrid(N);
+  </script>
+</body>
+</html>
