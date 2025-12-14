@@ -63,7 +63,7 @@
   <div id="overlay">
     <div class="card">
       <div style="font-weight:700; font-size:18px;">AR View</div>
-      <p style="opacity:.9; margin: 8px 0;">Ensure "targets.mind" is in the same folder as this file.</p>
+      <p style="opacity:.9; margin: 8px 0;">Ensure you have a "targets" folder with "targets.mind" inside.</p>
       <div class="btn" id="start">Start AR</div>
       <div class="btn" onclick="location.href='./'">Back</div>
     </div>
@@ -88,18 +88,21 @@
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         
-        this.el.addEventListener('object3dset', () => {
+        // Apply texture when mesh is ready or updated
+        const apply = () => {
           const mesh = this.el.getObject3D("mesh");
-          if (mesh) {
-            mesh.traverse((node) => {
-              if (node.isMesh) {
-                node.material.map = texture;
-                node.material.needsUpdate = true;
-              }
-            });
-          }
-        });
-        this.texture = texture;
+          if (!mesh) return;
+          mesh.traverse((node) => {
+            if (node.isMesh) {
+              node.material.map = texture;
+              node.material.needsUpdate = true;
+            }
+          });
+          this.texture = texture;
+        };
+
+        if (this.el.getObject3D("mesh")) apply();
+        else this.el.addEventListener('object3dset', apply);
       },
       tick() { if (this.texture) this.texture.needsUpdate = true; }
     });
@@ -135,7 +138,7 @@
     }
 
     async function loadPattern() {
-      if (!png) { hint.textContent = "No pattern found!"; return false; }
+      if (!png) { hint.textContent = "No pattern found! Go back."; return false; }
       texCanvas.width = N; texCanvas.height = N;
       const img = new Image();
       img.src = png;
@@ -150,8 +153,8 @@
 
     // 4. AR Initialization
     function mountMindARScene() {
-      // NOTE: Ensure 'targets.mind' is in the root directory
-      const targetSrc = "targets.mind"; 
+      // NOTE: Using the 'targets' subfolder as requested
+      const targetSrc = "targets/targets.mind"; 
 
       hint.textContent = "Initializing AR...";
 
@@ -189,7 +192,7 @@
       });
       
       sceneEl.addEventListener("arError", (e) => {
-        hint.textContent = "❌ AR Error: " + (e.detail.error || "Check targets.mind path");
+        hint.textContent = "❌ AR Error: " + (e.detail.error || "Check console/path");
       });
 
       targetEl.addEventListener("targetFound", () => {
