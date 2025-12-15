@@ -11,20 +11,19 @@
       font-family: system-ui, -apple-system, sans-serif;
       background: #111; color: white;
       
-      /* CRITICAL FIXES FOR SCROLLING/SPLIT SCREEN */
-      overflow: hidden;           /* no scrollbars */
-      position: fixed;            /* locks body in place */
-      overscroll-behavior: none;  /* stops iOS bounce */
-      touch-action: none;         /* disables default touch gestures */
+      overflow: hidden;           
+      position: fixed;            
+      overscroll-behavior: none;  
+      touch-action: none;         
     }
     
     .step {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
       display: flex; flex-direction: column;
-      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); /* Smooth slide */
+      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
       background: #111;
-      overflow: hidden; /* Ensures contents don't spill out */
+      overflow: hidden; 
     }
     .hidden-left { transform: translateX(-100%); }
     .hidden-right { transform: translateX(100%); }
@@ -33,13 +32,11 @@
     #draw-container {
       flex: 1; position: relative;
       background: #222; 
-      /* Ensures canvas captures all touches */
       touch-action: none; 
       cursor: crosshair;
       overflow: hidden;
     }
 
-    /* Layers */
     #backingImg {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
@@ -52,7 +49,7 @@
       position: absolute; inset: 0; 
       z-index: 10; 
       display: block; 
-      touch-action: none; /* Crucial for drawing */
+      touch-action: none;
     }
 
     /* --- PATTERN DRAWER --- */
@@ -66,11 +63,9 @@
       display: flex; align-items: center; gap: 10px;
       overflow-x: auto; padding: 0 10px;
       
-      transform: translateY(150%); /* Hidden by default */
+      transform: translateY(150%);
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
-      
-      /* Re-enable scrolling only inside the drawer */
       touch-action: pan-x; 
     }
     #patternDrawer.open { transform: translateY(0); }
@@ -101,7 +96,7 @@
       display: flex; gap: 8px;
       align-items: center; justify-content: space-between;
       border-top: 1px solid rgba(255,255,255,0.15);
-      touch-action: none; /* Prevent dragging the UI bar */
+      touch-action: none;
     }
     .top-bar {
       border-bottom: 1px solid rgba(255,255,255,0.15);
@@ -130,7 +125,7 @@
       border-color: #fff !important;
     }
 
-    .control-group { display: flex; flex-direction: column; gap: 2px; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
     label { font-size: 9px; text-transform: uppercase; color: #aaa; letter-spacing: 0.5px; }
     
     select, input[type="color"] {
@@ -139,6 +134,18 @@
       font-size: 14px; height: 32px; outline: none;
     }
     input[type="color"] { width: 40px; padding: 2px; }
+
+    /* Range Sliders */
+    input[type=range] {
+      -webkit-appearance: none; width: 100%; background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+      background: #fff; cursor: pointer; margin-top: -6px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 4px; cursor: pointer; background: #555; border-radius: 2px;
+    }
     
     #imgUpload { display: none; }
   </style>
@@ -153,9 +160,7 @@
     <div id="draw-container">
       <img id="backingImg" alt="Background" crossorigin="anonymous">
       <canvas id="drawCanvas"></canvas>
-      
-      <div id="patternDrawer">
-        </div>
+      <div id="patternDrawer"></div>
     </div>
 
     <div class="ui-bar">
@@ -197,26 +202,36 @@
       <canvas id="previewCanvas"></canvas>
     </div>
 
-    <div class="ui-bar" style="flex-wrap: wrap;">
-      <div class="control-group">
-        <label>Background</label>
-        <input type="color" id="bgColor" value="#000000">
+    <div class="ui-bar" style="flex-wrap: wrap; gap: 12px;">
+      <div style="display:flex; width:100%; gap:12px;">
+        <div class="control-group">
+            <label>BG</label>
+            <input type="color" id="bgColor" value="#000000">
+        </div>
+
+        <div class="control-group" style="flex:1;">
+            <label>Grid Size</label>
+            <input type="range" id="sizeSlider" min="50" max="300" value="120">
+        </div>
+
+        <div class="control-group" style="flex:1;">
+            <label>Spacing</label>
+            <input type="range" id="gapSlider" min="0" max="100" value="0">
+        </div>
       </div>
 
-      <div class="control-group" style="flex:1">
-        <label>Pattern Style</label>
-        <select id="tileMode" style="width:100%">
-          <option value="grid">Grid</option>
-          <option value="brick">Brick (Offset)</option>
-          <option value="hex">Hex (Packed)</option>
-        </select>
+      <div style="display:flex; width:100%; gap:12px; align-items:center;">
+          <div class="control-group" style="flex:1;">
+            <select id="tileMode" style="width:100%">
+              <option value="grid">Grid (Basic)</option>
+              <option value="brick">Brick (Offset)</option>
+              <option value="hex">Hex (Packed)</option>
+            </select>
+          </div>
+          
+          <button class="btn" id="backBtn" style="background:transparent; border:1px solid #666; color:#ccc;">&larr;</button>
+          <button class="btn" id="saveBtn" style="background:white; color:black; flex:2;">View in AR &rarr;</button>
       </div>
-
-      <div style="width: 100%; height: 8px;"></div>
-
-      <button class="btn" id="backBtn" style="background:transparent; border:1px solid #666; color:#ccc;">&larr; Edit</button>
-      <div style="flex:1"></div>
-      <button class="btn" id="saveBtn" style="background:white; color:black;">View in AR &rarr;</button>
     </div>
   </div>
 
@@ -239,7 +254,7 @@
     //  👇 YOUR IMAGE LIST 👇
     // ============================================================
     const presetPatterns = [
-       "patterns/p1.png", 
+      "patterns/p1.png", 
       "patterns/p2.png",
       "patterns/p3.png",
       "patterns/p4.png",
@@ -257,14 +272,12 @@
     const patternDrawer = document.getElementById("patternDrawer");
     const libBtn = document.getElementById("libBtn");
 
-    // Populate drawer
     presetPatterns.forEach(src => {
       const img = document.createElement("img");
       img.src = src;
       img.className = "pattern-thumb";
       img.onerror = () => { img.style.display = 'none'; }; 
       img.addEventListener("click", (e) => {
-        // Stop event from bubbling to canvas (prevent drawing when selecting)
         e.stopPropagation();
         setBackingImage(src);
         patternDrawer.classList.remove("open");
@@ -272,7 +285,6 @@
       patternDrawer.appendChild(img);
     });
 
-    // Toggle Drawer
     libBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         patternDrawer.classList.toggle("open");
@@ -281,7 +293,6 @@
     // --- 1. SETUP CANVAS ---
     function resizeDrawCanvas() {
       const container = document.getElementById("draw-container");
-      // Prevent resizing from erasing data
       if (drawCanvas.width !== container.clientWidth || drawCanvas.height !== container.clientHeight) {
         const saved = drawCanvas.toDataURL();
         drawCanvas.width = container.clientWidth;
@@ -321,23 +332,17 @@
       updateToolSettings();
     });
 
-    // --- 3. DRAWING LOGIC (With Scroll Lock) ---
+    // --- 3. DRAWING LOGIC ---
     function startDraw(e) {
-      // Close drawer if open
       patternDrawer.classList.remove("open");
-
-      // Stop Browser Scrolling immediately
       if(e.cancelable) e.preventDefault();
-      
       isDrawing = true;
       const { x, y } = getPos(e);
       lastX = x; lastY = y;
     }
-    
     function draw(e) {
-      if(e.cancelable) e.preventDefault(); // Stop scrolling while moving
+      if(e.cancelable) e.preventDefault(); 
       if (!isDrawing) return;
-      
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(lastX, lastY);
@@ -345,7 +350,6 @@
       ctx.stroke();
       lastX = x; lastY = y;
     }
-    
     function endDraw() { isDrawing = false; }
     
     function getPos(e) {
@@ -355,7 +359,6 @@
       return { x: clientX - rect.left, y: clientY - rect.top };
     }
     
-    // Add 'passive: false' to allow preventDefault() to work for scroll blocking
     drawCanvas.addEventListener("mousedown", startDraw);
     drawCanvas.addEventListener("mousemove", draw);
     drawCanvas.addEventListener("mouseup", endDraw);
@@ -426,11 +429,16 @@
       step1.classList.remove("hidden-left");
     });
 
-    // Preview
+    // --- 6. PREVIEW GENERATION (Grid Size & Gap) ---
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
-    bgColorInput.addEventListener("input", renderPatternPreview);
-    tileModeInput.addEventListener("change", renderPatternPreview);
+    const sizeSlider = document.getElementById("sizeSlider");
+    const gapSlider = document.getElementById("gapSlider");
+
+    // Add listeners to sliders
+    [bgColorInput, tileModeInput, sizeSlider, gapSlider].forEach(el => {
+        el.addEventListener("input", renderPatternPreview);
+    });
 
     function renderPatternPreview() {
       const source = getCompositeCanvas();
@@ -441,57 +449,89 @@
       pctx.fillStyle = bgColorInput.value;
       pctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-      const baseSize = 120; 
+      // Get Values from Sliders
+      const baseSize = parseInt(sizeSlider.value); // Scale
+      const gap = parseInt(gapSlider.value);       // Spacing
+
       const ratio = source.width / source.height;
       const tileW = baseSize;
       const tileH = baseSize / ratio; 
+
+      // Stride is the visual distance from one tile center to the next
+      // We add the gap to the stride
+      const strideX = tileW + gap;
+      const strideY = tileH + gap;
+
       const mode = tileModeInput.value;
-      const cols = Math.ceil(previewCanvas.width / tileW) + 1;
-      const rows = Math.ceil(previewCanvas.height / tileH) + 1;
+      const cols = Math.ceil(previewCanvas.width / strideX) + 1;
+      const rows = Math.ceil(previewCanvas.height / strideY) + 1;
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
-          let dx = x * tileW;
-          let dy = y * tileH;
+          let dx = x * strideX;
+          let dy = y * strideY;
+          
           if (mode === 'brick') {
-            if (y % 2 === 1) dx -= tileW / 2;
+            if (y % 2 === 1) dx -= strideX / 2;
           } else if (mode === 'hex') {
-            dy = y * (tileH * 0.85);
-            if (y % 2 === 1) dx -= tileW / 2;
+            // Hex uses a tighter vertical stride, but we respect the gap
+            dy = y * (strideY * 0.85);
+            if (y % 2 === 1) dx -= strideX / 2;
           }
+          
+          // Draw the image at tileW/tileH size (Gap is created by the stride being larger)
           pctx.drawImage(source, dx, dy, tileW, tileH);
         }
       }
     }
 
-    // --- 6. SAVE ---
+    // --- 7. SAVE ---
     document.getElementById("saveBtn").addEventListener("click", () => {
       const source = getCompositeCanvas();
       const texCanvas = document.createElement("canvas");
+      // Use 1024x1024 for high quality AR texture
       texCanvas.width = 1024; texCanvas.height = 1024;
       const tctx = texCanvas.getContext("2d");
 
       tctx.fillStyle = bgColorInput.value;
       tctx.fillRect(0, 0, 1024, 1024);
 
-      const REPEAT_COLS = 6; 
-      const tileW = 1024 / REPEAT_COLS; 
-      const ratio = source.width / source.height;
-      const tileH = tileW / ratio;
-      const REPEAT_ROWS = Math.ceil(1024 / tileH);
-      const mode = tileModeInput.value;
+      // --- CALCULATE DENSITY FOR TEXTURE ---
+      // We want the density on the 1024 texture to roughly match what the user sees.
+      // 1. Calculate how many cols fit on a hypothetical mobile screen (e.g. width 360)
+      const refScreenW = 360;
+      const visualSize = parseInt(sizeSlider.value);
+      const visualGap = parseInt(gapSlider.value);
+      const visualStride = visualSize + visualGap;
+      const colsPerScreen = refScreenW / visualStride;
 
-      for (let y = -1; y < REPEAT_ROWS + 2; y++) {
-        for (let x = -1; x < REPEAT_COLS + 2; x++) {
-          let dx = x * tileW;
-          let dy = y * tileH;
+      // 2. Map that density to the 1024 texture
+      const texStrideX = 1024 / colsPerScreen;
+      
+      // 3. Determine Scale Ratio to keep aspect correct
+      const scaleRatio = texStrideX / visualStride;
+      const texTileW = visualSize * scaleRatio;
+      const texTileH = (visualSize / (source.width / source.height)) * scaleRatio;
+      const texStrideY = (visualSize / (source.width / source.height) + visualGap) * scaleRatio;
+
+      const mode = tileModeInput.value;
+      // Add extra rows/cols buffer
+      const REPEAT_COLS = Math.ceil(1024 / texStrideX) + 2;
+      const REPEAT_ROWS = Math.ceil(1024 / texStrideY) + 2;
+
+      for (let y = -1; y < REPEAT_ROWS; y++) {
+        for (let x = -1; x < REPEAT_COLS; x++) {
+          let dx = x * texStrideX;
+          let dy = y * texStrideY;
+          
           if (mode === 'brick') {
-            if (y % 2 === 1) dx -= tileW / 2;
+            if (y % 2 === 1) dx -= texStrideX / 2;
           } else if (mode === 'hex') {
-            dy = y * (tileH * 0.85);
-            if (y % 2 === 1) dx -= tileW / 2;
+            dy = y * (texStrideY * 0.85);
+            if (y % 2 === 1) dx -= texStrideX / 2;
           }
-          tctx.drawImage(source, dx, dy, tileW, tileH);
+          
+          tctx.drawImage(source, dx, dy, texTileW, texTileH);
         }
       }
 
