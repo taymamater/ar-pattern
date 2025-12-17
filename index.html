@@ -138,7 +138,6 @@
       justify-content: center;
     }
 
-    /* backing image */
     #backingImg {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
@@ -150,7 +149,6 @@
       filter: contrast(1.02) saturate(1.05);
     }
 
-    /* canvases */
     #drawCanvas,
     #previewCanvas {
       position: absolute;
@@ -687,7 +685,7 @@
       step1.classList.remove("hidden-left");
     });
 
-    // --- 6. UNIFIED RENDER LOGIC ---
+    // --- 6. UNIFIED RENDER LOGIC (Preview + Save) ---
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
     const sizeSlider = document.getElementById("sizeSlider");
@@ -742,11 +740,20 @@
         strideY = tileH + gap;
       }
 
-      const cols = Math.ceil(targetCanvas.width / strideX) + 2;
-      const rows = Math.ceil(targetCanvas.height / strideY) + 2;
+      // Determine loop bounds
+      let minX = -1;
+      let minY = -1;
+      let maxX = Math.ceil(targetCanvas.width / strideX) + 1;
+      let maxY = Math.ceil(targetCanvas.height / strideY) + 1;
 
-      for (let y = -1; y < rows; y++) {
-        for (let x = -1; x < cols; x++) {
+      // For Diagonal, expand the drawing area to the left
+      // because positive Y shifts the row to the right.
+      if (mode === 'diagonal') {
+          minX = -Math.ceil(maxY * 0.5) - 2; 
+      }
+
+      for (let y = minY; y < maxY; y++) {
+        for (let x = minX; x < maxX; x++) {
           ctx.save();
           let dx = x * strideX;
           let dy = y * strideY;
@@ -761,8 +768,7 @@
           }
           else if (mode === 'diagonal') {
             dx += y * (strideX / 2);
-            // Rotate 45deg to follow diagonal flow
-            rotation = Math.PI / 4; 
+            rotation = Math.PI / 4; // Rotate 45 degrees
           }
           else if (mode === 'tossed') {
              const seed = pseudoRandom(x, y);
