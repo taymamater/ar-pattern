@@ -2,572 +2,177 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-  />
-  <title>Draw Pattern</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Pattern AR (MindAR)</title>
+
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    /* =========================
-       Modern Mobile UI System
-       ========================= */
-    :root{
-      --bg0:#07070A;
-      --bg1:#0B0B10;
-      --panel-strong: rgba(18,18,22,0.92);
-      --stroke: rgba(255,255,255,0.12);
-      --text: rgba(255,255,255,0.92);
-      --muted: rgba(255,255,255,0.68);
-
-      --radius: 18px;
-      --gap: clamp(8px, 2.5vw, 14px);
-      --pad: clamp(12px, 3.2vw, 16px);
-      --control-h: 42px;
-      --icon-w: 44px;
-
-      --maxw: 640px;
-      --bottom-bar-space: 118px;
-    }
-
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    button, input, select { font: inherit; }
-
     html, body {
-      margin: 0; padding: 0; width: 100%; height: 100%;
-      background: radial-gradient(1200px 900px at 30% 10%, #141427 0%, var(--bg0) 48%, var(--bg1) 100%);
-      color: var(--text);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      overflow: hidden; position: fixed; overscroll-behavior: none; touch-action: none;
+      margin: 0; width: 100%; height: 100%;
+      overflow: hidden;
+      background: transparent !important; 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto;
     }
 
-    body { height: 100dvh; }
-
-    /* --- STEPS --- */
-    .step {
-      position: absolute; inset: 0; width: 100%; height: 100dvh;
-      display: flex; flex-direction: column;
-      transition: transform 0.42s cubic-bezier(0.25, 1, 0.5, 1);
-      background: transparent; overflow: hidden;
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .hidden-left { transform: translateX(-100%); }
-    .hidden-right { transform: translateX(100%); }
-
-    /* --- UI WRAPPERS --- */
-    .bar-inner {
-      width: 100%; max-width: var(--maxw); margin: 0 auto;
-      display: flex; gap: var(--gap); align-items: center; justify-content: space-between;
-      padding: 0 var(--pad);
+    video, .a-canvas {
+      position: fixed !important; top: 0 !important; left: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      object-fit: cover !important;
     }
 
-    .ui-bar.top-bar {
-      position: relative; z-index: 40; padding: 10px 0;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0.05));
-      border-bottom: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px);
-    }
+    #mindar-video, video { z-index: 0 !important; }
+    .a-canvas { z-index: 1 !important; background: transparent !important; pointer-events: none; }
+    a-scene { background: transparent !important; }
 
-    .title h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text); }
-    .title .subtitle { font-size: 12px; color: var(--muted); }
-
-    /* --- CANVAS CONTAINERS --- */
-    #draw-container, #preview-container {
-      flex: 1; position: relative; overflow: hidden;
-      padding-bottom: calc(var(--bottom-bar-space) + env(safe-area-inset-bottom));
+    #overlay {
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.75);
+      color: rgba(255, 255, 255, 0.92);
+      text-align: center; padding: 18px;
     }
-    #draw-container { background: rgba(0,0,0,0.35); touch-action: none; cursor: crosshair; }
-    #preview-container { background: rgba(0,0,0,0.55); }
-
-    #backingImg {
-      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-      z-index: 0; display: none; pointer-events: none; opacity: 0.9;
+    .card {
+      max-width: 420px; background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px; padding: 16px;
     }
-    #drawCanvas, #previewCanvas {
-      position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none;
-    }
-    #drawCanvas { z-index: 10; }
-    #previewCanvas { z-index: 10; }
-
-    /* --- DRAWER --- */
-    #patternDrawer {
-      position: absolute; left: var(--pad); right: var(--pad);
-      bottom: calc(var(--bottom-bar-space) + 20px + env(safe-area-inset-bottom));
-      height: 92px; background: var(--panel-strong);
-      border: 1px solid var(--stroke); border-radius: 22px;
-      z-index: 30; display: flex; align-items: center; gap: 10px;
-      overflow-x: auto; padding: 12px;
-      transform: translateY(150%); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-    #patternDrawer.open { transform: translateY(0); }
-    .pattern-thumb {
-      width: 68px; height: 68px; flex-shrink: 0; border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.12); object-fit: cover; cursor: pointer; background: #000;
-    }
-
-    /* --- BOTTOM BAR --- */
-    .ui-bar.bottom-bar {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 40;
-      padding-top: 10px; padding-bottom: calc(12px + env(safe-area-inset-bottom));
-      background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.4));
-      backdrop-filter: blur(16px); border-top: 1px solid rgba(255,255,255,0.10);
-    }
-
-    /* --- CONTROLS --- */
-    .control-group { display: flex; flex-direction: column; gap: 6px; min-width: 50px; }
-    label { font-size: 9px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
-
     .btn {
-      appearance: none; border: 1px solid var(--stroke); background: rgba(255,255,255,0.06);
-      color: var(--text); height: var(--control-h); padding: 0 14px;
-      border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center;
+      display: inline-block; margin-top: 12px;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: rgba(255, 255, 255, 0.92);
+      padding: 10px 12px; border-radius: 12px;
+      cursor: pointer; font-size: 14px;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn-icon { width: var(--icon-w); padding: 0; font-size: 0; }
-    .tool-active { background: rgba(255,255,255,0.92) !important; color: #111 !important; }
-    .btn-ghost { background: transparent; border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.78); }
-    .btn-primary { background: rgba(255,255,255,0.94); color: #111; border-color: #fff; }
-
-    select, input[type="color"] {
-      height: var(--control-h); border-radius: 12px; border: 1px solid var(--stroke);
-      background: rgba(255,255,255,0.06); color: var(--text); padding: 0 10px; outline: none;
+    #hint {
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40;
+      background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.92); padding: 10px 12px; border-radius: 14px;
+      backdrop-filter: blur(8px); text-align: center;
     }
-    input[type="color"] { width: 44px; padding: 4px; }
-    input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; height: var(--control-h); margin: 0; }
-    input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.2); border-radius: 99px; }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-      background: #fff; margin-top: -7px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    .row { display: flex; gap: var(--gap); align-items: center; }
-    .row-wrap { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
-    .spacer { flex: 1; }
-    .stack { display: flex; flex-direction: column; gap: var(--gap); width: 100%; }
-
-    @media (max-width: 380px){ :root{ --bottom-bar-space: 126px; } }
-    #imgUpload { display: none; }
   </style>
 </head>
 
 <body>
-
-  <div id="step1" class="step">
-    <div class="ui-bar top-bar">
-      <div class="bar-inner">
-        <div class="title">
-          <h2>1. Create Tile</h2>
-          <span class="subtitle">Draw or select base</span>
-        </div>
-      </div>
-    </div>
-
-    <div id="draw-container">
-      <img id="backingImg" alt="Background" crossorigin="anonymous">
-      <canvas id="drawCanvas"></canvas>
-      <div id="patternDrawer"></div>
-    </div>
-
-    <div class="ui-bar bottom-bar">
-      <div class="bar-inner row-wrap">
-        <div class="control-group">
-          <label>Color</label>
-          <input type="color" id="brushColor" value="#ffffff">
-        </div>
-
-        <div class="control-group">
-          <label>Tools</label>
-          <div class="row">
-            <button class="btn btn-icon tool-active" id="brushBtn" title="Brush">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20c3.5 0 5-1.2 6-3.2 1-2.1 2.3-3.2 4.5-5.4l6.1-6.1a2.5 2.5 0 0 0-3.5-3.5L11 7.9C8.8 10.1 7.7 11.4 5.6 12.4 3.2 13.5 2 15 2 18.5" stroke-linecap="round"/><path d="M6 20c0-2 1.2-3.2 3.2-4.2" stroke-linecap="round" opacity=".7"/></svg>
-            </button>
-            <button class="btn btn-icon" id="eraserBtn" title="Eraser">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 20h12" stroke-linecap="round"/><path d="M7.5 19.5 3 15c-.8-.8-.8-2 0-2.8L12.2 3c.8-.8 2-.8 2.8 0l6 6c.8.8.8 2 0 2.8L13.3 19.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 14.5h8" stroke-linecap="round" opacity=".7"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <label>Base</label>
-          <div class="row">
-            <button class="btn btn-icon" id="libBtn" title="Library">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4h10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 4v14" stroke-linecap="round" opacity=".7"/></svg>
-            </button>
-            <button class="btn btn-icon" id="uploadBtn" title="Upload">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4" stroke-linecap="round"/><path d="M7 8l5-5 5 5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke-linecap="round" opacity=".7"/></svg>
-            </button>
-          </div>
-          <input type="file" id="imgUpload" accept="image/*">
-        </div>
-
-        <button class="btn btn-ghost" id="clearBtn" style="margin-left: 8px;">Clear</button>
-        <div class="spacer"></div>
-        <button class="btn btn-primary" id="toStep2">Next →</button>
-      </div>
+  <div id="overlay">
+    <div class="card">
+      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">AR View</div>
+      <div style="opacity:.9">Tap Start and point at your marker.</div>
+      <div class="btn" id="start">Start AR</div>
+      <div class="btn" onclick="location.href='./'">Back</div>
     </div>
   </div>
 
-  <div id="step2" class="step hidden-right">
-    <div class="ui-bar top-bar">
-      <div class="bar-inner">
-        <div class="title">
-          <h2>2. Style Pattern</h2>
-          <span class="subtitle">Customize layout</span>
-        </div>
-      </div>
-    </div>
+  <div id="hint">Loading...</div>
 
-    <div id="preview-container">
-      <canvas id="previewCanvas"></canvas>
-    </div>
-
-    <div class="ui-bar bottom-bar">
-      <div class="bar-inner">
-        <div class="stack">
-          <div class="row" style="width:100%;">
-            <div class="control-group">
-              <label>BG</label>
-              <input type="color" id="bgColor" value="#000000">
-            </div>
-            <div class="control-group" style="flex:1;">
-              <label>Size</label>
-              <input type="range" id="sizeSlider" min="50" max="300" value="120">
-            </div>
-            <div class="control-group" style="flex:1;">
-              <label>Gap</label>
-              <input type="range" id="gapSlider" min="0" max="100" value="0">
-            </div>
-          </div>
-
-          <div class="row" style="width:100%;">
-            <button class="btn btn-ghost btn-icon" id="backBtn" title="Back">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            
-            <div class="control-group" style="flex:1;">
-              <select id="tileMode" style="width:100%">
-                <option value="block">Block (Grid)</option>
-                <option value="brick">Brick</option>
-                <option value="half-drop">Half Drop</option>
-                <option value="diagonal">Diagonal</option>
-                <option value="diamond">Diamond</option>
-                <option value="tossed">Tossed (Random)</option>
-              </select>
-            </div>
-
-            <button class="btn btn-primary" id="saveBtn" style="flex:1;">View in AR →</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
   <script>
-    /* ================= INITIALIZATION ================= */
-    const drawCanvas = document.getElementById("drawCanvas");
-    const ctx = drawCanvas.getContext("2d");
-    const backingImg = document.getElementById("backingImg");
-    const previewCanvas = document.getElementById("previewCanvas");
-    const pctx = previewCanvas.getContext("2d");
-
-    let isDrawing = false;
-    let lastX = 0, lastY = 0;
-    let currentMode = 'brush';
-
-    const brushBtn = document.getElementById("brushBtn");
-    const eraserBtn = document.getElementById("eraserBtn");
-    const patternDrawer = document.getElementById("patternDrawer");
-    const libBtn = document.getElementById("libBtn");
-
-    // Update with your real image paths
-    const presetPatterns = [
-      "patterns/p1.png", "patterns/p2.png", "patterns/p3.png", "patterns/p4.png",
-      "patterns/p5.png", "patterns/p6.png", "patterns/p7.png", "patterns/p8.png",
-      "patterns/p9.png", "patterns/p10.png", "patterns/p11.png"
-    ];
-
-    // --- SETUP LIBRARY ---
-    presetPatterns.forEach(src => {
-      const img = document.createElement("img");
-      img.src = src; img.className = "pattern-thumb";
-      img.onerror = () => { img.style.display = 'none'; };
-      img.addEventListener("click", (e) => {
-        e.stopPropagation();
-        setBackingImage(src);
-        patternDrawer.classList.remove("open");
-      });
-      patternDrawer.appendChild(img);
+    AFRAME.registerComponent("dynamic-canvas-texture", {
+      schema: { canvas: { type: "selector" } },
+      init() {
+        const canvas  = this.data.canvas;
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        
+        const apply = () => {
+          const mesh = this.el.getObject3D("mesh");
+          if (!mesh) return;
+          mesh.traverse((node) => {
+            if (!node.isMesh) return;
+            node.material.map = texture;
+            node.material.needsUpdate = true;
+          });
+          this.texture = texture;
+        };
+        if (this.el.getObject3D("mesh")) apply();
+        else this.el.addEventListener("object3dset", apply);
+      },
+      tick() { if (this.texture) this.texture.needsUpdate = true; }
     });
 
-    libBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      patternDrawer.classList.toggle("open");
-    });
+    const hint = document.getElementById("hint");
+    const tileCanvas = document.getElementById("tileCanvas");
+    const tileCtx = tileCanvas.getContext("2d");
+    const png = localStorage.getItem("pattern_png");
 
-    // --- SETUP CANVAS RESIZING ---
-    function resizeDrawCanvas() {
-      const container = document.getElementById("draw-container");
-      if (drawCanvas.width !== container.clientWidth || drawCanvas.height !== container.clientHeight) {
-        const saved = drawCanvas.toDataURL();
-        drawCanvas.width = container.clientWidth;
-        drawCanvas.height = container.clientHeight;
-        ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.lineJoin = "round";
-        updateToolSettings();
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0);
-        img.src = saved;
-      }
-    }
-    window.addEventListener("resize", resizeDrawCanvas);
-    setTimeout(resizeDrawCanvas, 10);
-
-    // --- TOOLS ---
-    function updateToolSettings() {
-      if (currentMode === 'brush') {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = document.getElementById("brushColor").value;
-        brushBtn.classList.add("tool-active");
-        eraserBtn.classList.remove("tool-active");
-      } else {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.strokeStyle = "rgba(0,0,0,1)";
-        brushBtn.classList.remove("tool-active");
-        eraserBtn.classList.add("tool-active");
-      }
-    }
-    brushBtn.addEventListener("click", () => { currentMode = 'brush'; updateToolSettings(); });
-    eraserBtn.addEventListener("click", () => { currentMode = 'eraser'; updateToolSettings(); });
-    document.getElementById("brushColor").addEventListener("input", () => {
-      if (currentMode === 'eraser') currentMode = 'brush';
-      updateToolSettings();
-    });
-
-    // --- DRAWING ---
-    function startDraw(e) {
-      patternDrawer.classList.remove("open");
-      if(e.cancelable) e.preventDefault();
-      isDrawing = true;
-      const { x, y } = getPos(e);
-      lastX = x; lastY = y;
-    }
-    function draw(e) {
-      if(e.cancelable) e.preventDefault();
-      if (!isDrawing) return;
-      const { x, y } = getPos(e);
-      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
-      lastX = x; lastY = y;
-    }
-    function endDraw() { isDrawing = false; }
-    function getPos(e) {
-      const rect = drawCanvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-    drawCanvas.addEventListener("mousedown", startDraw);
-    drawCanvas.addEventListener("mousemove", draw);
-    drawCanvas.addEventListener("mouseup", endDraw);
-    drawCanvas.addEventListener("touchstart", startDraw, { passive: false });
-    drawCanvas.addEventListener("touchmove", draw, { passive: false });
-    drawCanvas.addEventListener("touchend", endDraw);
-
-    // --- CLEAR / IMAGES ---
-    document.getElementById("clearBtn").addEventListener("click", () => {
-      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-      backingImg.src = "";
-      backingImg.style.display = "none";
-    });
-
-    function setBackingImage(src) {
-      backingImg.crossOrigin = "Anonymous";
-      backingImg.src = src; backingImg.style.display = "block";
-    }
-
-    const uploadBtn = document.getElementById("uploadBtn");
-    const fileInput = document.getElementById("imgUpload");
-    uploadBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => setBackingImage(event.target.result);
-      reader.readAsDataURL(file);
-    });
-
-    // --- HELPER: GET SOURCE TILE ---
-    function getCompositeCanvas() {
-      const c = document.createElement("canvas");
-      c.width = drawCanvas.width; c.height = drawCanvas.height;
-      const cx = c.getContext("2d");
-      if (backingImg.style.display !== 'none' && backingImg.src) {
-        const img = backingImg;
-        const nw = img.naturalWidth||100, nh = img.naturalHeight||100;
-        const rC = c.width/c.height, rI = nw/nh;
-        let dw, dh, dx, dy;
-        if(rI > rC) { dh = c.height; dw = c.height*rI; dx = (c.width-dw)/2; dy=0; }
-        else { dw = c.width; dh = c.width/rI; dx=0; dy = (c.height-dh)/2; }
-        try { cx.drawImage(img, dx, dy, dw, dh); } catch(e){}
-      }
-      cx.drawImage(drawCanvas, 0, 0);
-      return c;
-    }
-
-    // --- NAVIGATION ---
-    const step1 = document.getElementById("step1");
-    const step2 = document.getElementById("step2");
-    document.getElementById("toStep2").addEventListener("click", () => {
-      renderPattern(previewCanvas, null); // Render to preview
-      step1.classList.add("hidden-left");
-      step2.classList.remove("hidden-right");
-    });
-    document.getElementById("backBtn").addEventListener("click", () => {
-      step2.classList.add("hidden-right");
-      step1.classList.remove("hidden-left");
-    });
-
-    // --- UNIFIED PATTERN RENDERING LOGIC ---
-    // Matches Save and Preview logic perfectly
-    const bgColorInput = document.getElementById("bgColor");
-    const tileModeInput = document.getElementById("tileMode");
-    const sizeSlider = document.getElementById("sizeSlider");
-    const gapSlider = document.getElementById("gapSlider");
-
-    [bgColorInput, tileModeInput, sizeSlider, gapSlider].forEach(el => {
-      el.addEventListener("input", () => renderPattern(previewCanvas, null));
-    });
-
-    // Deterministic random for "Tossed"
-    function pseudoRandom(x, y) {
-        return ((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1 + 1) % 1; 
-    }
-
-    function renderPattern(targetCanvas, exportConfig) {
-      const source = getCompositeCanvas();
-      const ctx = targetCanvas.getContext("2d");
-
-      // Set dimensions
-      if (exportConfig) {
-        targetCanvas.width = exportConfig.width;
-        targetCanvas.height = exportConfig.height;
-      } else {
-        // Preview mode: fit container
-        const container = document.getElementById("preview-container");
-        targetCanvas.width = container.clientWidth;
-        targetCanvas.height = container.clientHeight;
-      }
-
-      ctx.fillStyle = bgColorInput.value;
-      ctx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
-
-      // --- CALCULATE DIMENSIONS ---
-      let tileW, tileH, strideX, strideY;
-      const baseSize = parseInt(sizeSlider.value);
-      const gap = parseInt(gapSlider.value);
-      const srcRatio = source.width / source.height;
-
-      if (exportConfig) {
-        // AR Texture Calculation
-        // Map visual density on a small screen to the 1024 texture
-        const refScreenW = 360; 
-        const visualStride = baseSize + gap;
-        const scaleRatio = (1024 / (refScreenW / visualStride)) / visualStride;
-
-        tileW = baseSize * scaleRatio;
-        tileH = (baseSize / srcRatio) * scaleRatio;
-        strideX = tileW + (gap * scaleRatio);
-        strideY = tileH + (gap * scaleRatio);
-      } else {
-        // Preview Calculation
-        tileW = baseSize;
-        tileH = baseSize / srcRatio;
-        strideX = tileW + gap;
-        strideY = tileH + gap;
-      }
-
-      const mode = tileModeInput.value;
-      const cols = Math.ceil(targetCanvas.width / strideX) + 2; // buffer
-      const rows = Math.ceil(targetCanvas.height / strideY) + 2; // buffer
-
-      // --- DRAW LOOP ---
-      for (let y = -1; y < rows; y++) {
-        for (let x = -1; x < cols; x++) {
-          ctx.save();
-          
-          let dx = x * strideX;
-          let dy = y * strideY;
-          let rotation = 0;
-
-          // --- LAYOUT LOGIC ---
-          if (mode === 'brick') {
-            if (y % 2 !== 0) dx -= strideX / 2;
-          } 
-          else if (mode === 'half-drop') {
-            if (x % 2 !== 0) dy -= strideY / 2;
-          }
-          else if (mode === 'diagonal') {
-            dx += y * (strideX / 2);
-          }
-          else if (mode === 'diamond') {
-             // Rotate context around center, then draw grid
-             // Simple visual cheat: Offset rows/cols + Rotate individual tiles? 
-             // Better: Rotate the entire coordinate system 45deg
-             // To keep logic simple here without complex coordinate mapping, 
-             // we will use the Diagonal logic but rotate tiles individually 45deg? 
-             // No, "Diamond" layout usually means the grid is rotated 45deg.
-             // Let's emulate by rotating the canvas context for the whole loop:
-             // (Skipping full canvas rotation for simplicity in this specific loop, 
-             // instead we offset to create diamond centers)
-             // Let's do: Half Drop + Row Shift
-             if (y % 2 !== 0) dx -= strideX / 2;
-             // And we shift dy up to Pack them
-             // Diamond is tricky to perfect without rotation, let's just do a 
-             // Packed Hex style which creates diamonds visually.
-             // Actually, simplest 'Diamond' effect for users:
-             // Rotate tile 45deg + Grid.
-             
-             // Let's implement actual 45deg grid rotation logic:
-             const r = 0.707; // cos(45)
-             // This is hard to tile perfectly in a simple rect loop.
-             // Fallback: Just rotate the tile itself 45deg and pack tighter
-             rotation = 45 * (Math.PI/180);
-             // Tighter packing for rotated squares
-             const newStride = (tileW * r) + gap; 
-             // Override positions for diamond mode
-             dx = x * strideX; // Keep grid but rotate item
-          }
-          else if (mode === 'tossed') {
-             const seed = pseudoRandom(x, y);
-             rotation = (seed * 360) * (Math.PI/180);
-             dx += (seed - 0.5) * (strideX * 0.5); // Jitter X
-             dy += (pseudoRandom(y, x) - 0.5) * (strideY * 0.5); // Jitter Y
-          }
-
-          // Apply transformations
-          ctx.translate(dx + tileW/2, dy + tileH/2);
-          ctx.rotate(rotation);
-          
-          if (mode === 'diamond') {
-              // Scale down slightly so corners don't overlap too messily
-              const scale = 0.7;
-              ctx.scale(scale, scale);
-          }
-          
-          ctx.drawImage(source, -tileW/2, -tileH/2, tileW, tileH);
-          ctx.restore();
-        }
-      }
-    }
-
-    // --- SAVE ---
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      const exportCanvas = document.createElement("canvas");
-      // Render 1024x1024 texture using unified logic
-      renderPattern(exportCanvas, { width: 1024, height: 1024 });
+    async function loadPattern() {
+      if (!png) { hint.textContent = "No saved pattern found."; return false; }
       
-      localStorage.setItem("pattern_png", exportCanvas.toDataURL("image/png"));
-      location.href = "ar.html";
-    });
+      const img = new Image();
+      img.src = png;
+      await img.decode();
+
+      tileCanvas.width = 1024;
+      tileCanvas.height = 1024;
+      tileCtx.imageSmoothingEnabled = true;
+      tileCtx.clearRect(0, 0, 1024, 1024);
+      tileCtx.drawImage(img, 0, 0, 1024, 1024);
+
+      hint.textContent = "Ready.";
+      return true;
+    }
+
+    function mountMindARScene() {
+      const targetSrc = "targets/targets.mind";
+
+      // A4 Ratio Calculation:
+      // Width = 1 (Relative to marker width)
+      // Height = 1.414 (A4 is ~1.414 times taller than it is wide)
+      
+      document.body.insertAdjacentHTML("beforeend", `
+        <a-scene
+          mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false; uiLoading: no; uiScanning: no;"
+          embedded
+          color-space="sRGB"
+          renderer="colorManagement: true, physicallyCorrectLights; alpha: true;"
+          vr-mode-ui="enabled: false"
+          device-orientation-permission-ui="enabled: false"
+        >
+          <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+          <a-entity mindar-image-target="targetIndex: 0" id="targetEntity">
+            <a-plane
+              position="0 0 0"
+              rotation="0 0 0"
+              width="1"
+              height="1.414"
+              material="shader: flat; transparent: true; opacity: 1; side: double;"
+              dynamic-canvas-texture="canvas: #tileCanvas;"
+            ></a-plane>
+          </a-entity>
+        </a-scene>
+      `);
+
+      const sceneEl = document.querySelector("a-scene");
+      sceneEl.addEventListener("loaded", async () => {
+        const mindarSystem = sceneEl.systems["mindar-image-system"];
+        await mindarSystem.start();
+        hint.textContent = "Camera running ✅";
+      });
+
+      const targetEl = document.getElementById("targetEntity");
+      targetEl.addEventListener("targetFound", () => {
+        hint.textContent = "Marker found ✅";
+      });
+      targetEl.addEventListener("targetLost", () => {
+        hint.textContent = "Searching for marker...";
+      });
+    }
+
+    (async () => {
+      await loadPattern();
+      document.getElementById("start").addEventListener("click", () => {
+        document.getElementById("overlay").style.display = "none";
+        mountMindARScene();
+      });
+    })();
   </script>
 </body>
 </html>
