@@ -115,7 +115,7 @@
       letter-spacing: 0.2px;
     }
 
-    /* --- DRAW / PREVIEW CONTAINERS --- */
+    /* --- CONTAINERS --- */
     #draw-container,
     #preview-container{
       flex: 1;
@@ -193,14 +193,9 @@
     #patternDrawer.open { transform: translateY(0); }
 
     .pattern-thumb {
-      width: 68px;
-      height: 68px;
-      flex-shrink: 0;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.12);
-      object-fit: cover;
-      cursor: pointer;
-      background: #000;
+      width: 68px; height: 68px; flex-shrink: 0;
+      border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);
+      object-fit: cover; cursor: pointer; background: #000;
       transition: transform 0.15s ease, border-color 0.15s ease;
     }
     .pattern-thumb:active { transform: scale(0.97); }
@@ -334,7 +329,6 @@
       box-shadow: 0 10px 20px rgba(0,0,0,0.35);
     }
 
-    /* layout helpers */
     .row { display: flex; gap: var(--gap); align-items: center; }
     .row-wrap { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
     .spacer { flex: 1; }
@@ -484,9 +478,7 @@
                 <option value="brick">Brick</option>
                 <option value="half-drop">Half Drop</option>
                 <option value="diagonal">Diagonal</option>
-                <option value="diamond">Diamond</option>
                 <option value="ogee">Ogee</option>
-                <option value="stripe">Stripe</option>
                 <option value="tossed">Tossed / Random</option>
               </select>
             </div>
@@ -695,7 +687,7 @@
       step1.classList.remove("hidden-left");
     });
 
-    // --- 6. UNIFIED RENDER LOGIC (Preview + Save) ---
+    // --- 6. UNIFIED RENDER LOGIC ---
     const bgColorInput = document.getElementById("bgColor");
     const tileModeInput = document.getElementById("tileMode");
     const sizeSlider = document.getElementById("sizeSlider");
@@ -769,17 +761,8 @@
           }
           else if (mode === 'diagonal') {
             dx += y * (strideX / 2);
-          }
-          else if (mode === 'diamond') {
-             // Rotate tile 45deg and shift rows like brick
-             rotation = Math.PI / 4; 
-             if (y % 2 !== 0) dx -= strideX / 2;
-             // Scale down slightly so corners don't overlap too messy
-             const scale = 0.707; 
-             ctx.translate(dx + tileW/2, dy + tileH/2);
-             ctx.rotate(rotation);
-             ctx.scale(scale, scale);
-             ctx.translate(-(dx + tileW/2), -(dy + tileH/2));
+            // Rotate 45deg to follow diagonal flow
+            rotation = Math.PI / 4; 
           }
           else if (mode === 'tossed') {
              const seed = pseudoRandom(x, y);
@@ -787,7 +770,7 @@
              dx += (seed - 0.5) * (strideX * 0.5);
              dy += (pseudoRandom(y, x) - 0.5) * (strideY * 0.5);
           }
-          // Stripe = Block logic (Standard Grid)
+          // Block is default (no offsets)
 
           // Draw
           ctx.translate(dx + tileW/2, dy + tileH/2);
