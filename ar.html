@@ -105,28 +105,22 @@
 
   <div id="hint">Loading pattern…</div>
 
-  <canvas id="texCanvas" width="512" height="512" style="display:none"></canvas>
   <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
   <script>
-    // Updated Component: Defaults to Smooth (Linear) filtering now
     AFRAME.registerComponent("dynamic-canvas-texture", {
-      schema: { canvas: { type: "selector" }, pixelate: { type: "boolean", default: false } },
+      schema: { canvas: { type: "selector" } },
       init() {
         const canvas  = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
         
-        // Use LinearFilter for smooth quality unless pixelate is explicitly true
-        if (this.data.pixelate) {
-          texture.magFilter = THREE.NearestFilter;
-          texture.minFilter = THREE.NearestFilter;
-        } else {
-          texture.magFilter = THREE.LinearFilter;
-          texture.minFilter = THREE.LinearFilter;
-        }
+        // LinearFilter = Smooth (No pixelation)
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
         
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
+        
         const apply = () => {
           const mesh = this.el.getObject3D("mesh");
           if (!mesh) return;
@@ -143,67 +137,35 @@
       tick() { if (this.texture) this.texture.needsUpdate = true; }
     });
 
-    const hint       = document.getElementById("hint");
-    const texCanvas  = document.getElementById("texCanvas");
-    const tctx       = texCanvas.getContext("2d");
+    const hint = document.getElementById("hint");
     const tileCanvas = document.getElementById("tileCanvas");
-    const tileCtx    = tileCanvas.getContext("2d");
-
-    const png  = localStorage.getItem("pattern_png");
-    
-    // We default to 6 repeats
-    const REPEAT = 6;
-
-    function renderTiledTexture() {
-      const S = tileCanvas.width; // 1024
-      
-      // FIX 1: Enable Smoothing
-      tileCtx.imageSmoothingEnabled = true; 
-      tileCtx.clearRect(0, 0, S, S);
-      tileCtx.fillStyle = "#000000";
-      tileCtx.fillRect(0, 0, S, S);
-
-      // FIX 2: Calculate tile size based on high-res dimensions, ignoring "N"
-      const tilePx = S / REPEAT;
-
-      for (let y = 0; y < REPEAT; y++) {
-        for (let x = 0; x < REPEAT; x++) {
-          // Draw the full high-res texCanvas smoothly into the tile slot
-          tileCtx.drawImage(texCanvas, 0, 0, texCanvas.width, texCanvas.height,
-                            x * tilePx, y * tilePx,
-                            tilePx, tilePx);
-        }
-      }
-    }
+    const tileCtx = tileCanvas.getContext("2d");
+    const png = localStorage.getItem("pattern_png");
 
     async function loadPattern() {
       if (!png) {
-        hint.textContent = "No saved pattern found. Go back and create one first.";
+        hint.textContent = "No saved pattern found.";
         return false;
       }
       
-      // FIX 3: Use high resolution (512x512) for the source texture
-      texCanvas.width  = 512;
-      texCanvas.height = 512;
-
       const img = new Image();
-      img.src   = png;
+      img.src = png;
       await img.decode();
 
-      // FIX 4: Enable smoothing for the source load
-      tctx.imageSmoothingEnabled = true;
-      tctx.clearRect(0, 0, texCanvas.width, texCanvas.height);
-      tctx.drawImage(img, 0, 0, texCanvas.width, texCanvas.height);
+      // Draw the image EXACTLY as is (1:1), with no extra tiling loop
+      tileCanvas.width = 1024;
+      tileCanvas.height = 1024;
+      tileCtx.imageSmoothingEnabled = true;
+      tileCtx.clearRect(0, 0, 1024, 1024);
+      tileCtx.drawImage(img, 0, 0, 1024, 1024);
 
-      renderTiledTexture();
-      hint.textContent = "Ready. Tap Start AR and point at your marker.";
+      hint.textContent = "Ready. Tap Start AR.";
       return true;
     }
 
     function mountMindARScene() {
       const targetSrc = "targets/targets.mind";
 
-      // FIX 5: Set pixelate: false in the component usage
       document.body.insertAdjacentHTML("beforeend", `
         <a-scene
           mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false; uiLoading: no; uiScanning: no;"
@@ -220,9 +182,9 @@
               position="0 0 0"
               rotation="0 0 0"
               width="1"
-              height="1.414"
+              height="1"
               material="shader: flat; transparent: true; opacity: 1; side: double;"
-              dynamic-canvas-texture="canvas: #tileCanvas; pixelate: false;"
+              dynamic-canvas-texture="canvas: #tileCanvas;"
             ></a-plane>
           </a-entity>
         </a-scene>
@@ -237,7 +199,7 @@
 
       const targetEl = document.getElementById("targetEntity");
       targetEl.addEventListener("targetFound", () => {
-        hint.textContent = "Marker found ✅ Pattern tiled on marker.";
+        hint.textContent = "Marker found ✅ Pattern displayed.";
       });
       targetEl.addEventListener("targetLost", () => {
         hint.textContent = "Marker lost — point back at the marker.";
