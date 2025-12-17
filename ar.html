@@ -10,85 +10,48 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    /* Force transparent backgrounds so video shows through */
     html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
+      margin: 0; width: 100%; height: 100%;
       overflow: hidden;
       background: transparent !important; 
       font-family: system-ui, -apple-system, Segoe UI, Roboto;
     }
 
     video, .a-canvas {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
+      position: fixed !important; top: 0 !important; left: 0 !important;
+      width: 100vw !important; height: 100vh !important;
       object-fit: cover !important;
     }
 
-    /* Video goes to back */
-    #mindar-video, video {
-      z-index: 0 !important;
-    }
-
-    /* 3D Scene goes to front but is transparent */
-    .a-canvas {
-      z-index: 1 !important;
-      background: transparent !important;
-      pointer-events: none;
-    }
-
-    a-scene {
-      background: transparent !important;
-    }
+    #mindar-video, video { z-index: 0 !important; }
+    .a-canvas { z-index: 1 !important; background: transparent !important; pointer-events: none; }
+    a-scene { background: transparent !important; }
 
     #overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
       background: rgba(0, 0, 0, 0.75);
       color: rgba(255, 255, 255, 0.92);
-      text-align: center;
-      padding: 18px;
+      text-align: center; padding: 18px;
     }
     .card {
-      max-width: 420px;
-      background: rgba(255, 255, 255, 0.08);
+      max-width: 420px; background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 18px;
-      padding: 16px;
+      border-radius: 18px; padding: 16px;
     }
     .btn {
-      display: inline-block;
-      margin-top: 12px;
+      display: inline-block; margin-top: 12px;
       background: rgba(255, 255, 255, 0.22);
       border: 1px solid rgba(255, 255, 255, 0.25);
       color: rgba(255, 255, 255, 0.92);
-      padding: 10px 12px;
-      border-radius: 12px;
-      cursor: pointer;
-      user-select: none;
-      font-size: 14px;
+      padding: 10px 12px; border-radius: 12px;
+      cursor: pointer; font-size: 14px;
     }
     #hint {
-      position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
-      z-index: 40;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      color: rgba(255, 255, 255, 0.92);
-      padding: 10px 12px;
-      border-radius: 14px;
-      backdrop-filter: blur(8px);
-      text-align: center;
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40;
+      background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.92); padding: 10px 12px; border-radius: 14px;
+      backdrop-filter: blur(8px); text-align: center;
     }
   </style>
 </head>
@@ -96,14 +59,14 @@
 <body>
   <div id="overlay">
     <div class="card">
-      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">AR View (MindAR)</div>
-      <div style="opacity:.9">Tap Start, allow camera, then point at your image marker.</div>
+      <div style="font-weight:700; font-size:18px; margin-bottom:6px;">AR View</div>
+      <div style="opacity:.9">Tap Start and point at your marker.</div>
       <div class="btn" id="start">Start AR</div>
       <div class="btn" onclick="location.href='./'">Back</div>
     </div>
   </div>
 
-  <div id="hint">Loading pattern…</div>
+  <div id="hint">Loading...</div>
 
   <canvas id="tileCanvas" width="1024" height="1024" style="display:none"></canvas>
 
@@ -113,11 +76,8 @@
       init() {
         const canvas  = this.data.canvas;
         const texture = new THREE.CanvasTexture(canvas);
-        
-        // LinearFilter = Smooth (No pixelation)
         texture.magFilter = THREE.LinearFilter;
         texture.minFilter = THREE.LinearFilter;
-        
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         
@@ -143,29 +103,29 @@
     const png = localStorage.getItem("pattern_png");
 
     async function loadPattern() {
-      if (!png) {
-        hint.textContent = "No saved pattern found.";
-        return false;
-      }
+      if (!png) { hint.textContent = "No saved pattern found."; return false; }
       
       const img = new Image();
       img.src = png;
       await img.decode();
 
-      // Draw the image EXACTLY as is (1:1), with no extra tiling loop
       tileCanvas.width = 1024;
       tileCanvas.height = 1024;
       tileCtx.imageSmoothingEnabled = true;
       tileCtx.clearRect(0, 0, 1024, 1024);
       tileCtx.drawImage(img, 0, 0, 1024, 1024);
 
-      hint.textContent = "Ready. Tap Start AR.";
+      hint.textContent = "Ready.";
       return true;
     }
 
     function mountMindARScene() {
       const targetSrc = "targets/targets.mind";
 
+      // A4 Ratio Calculation:
+      // Width = 1 (Relative to marker width)
+      // Height = 1.414 (A4 is ~1.414 times taller than it is wide)
+      
       document.body.insertAdjacentHTML("beforeend", `
         <a-scene
           mindar-image="imageTargetSrc: ${targetSrc}; autoStart: false; uiLoading: no; uiScanning: no;"
@@ -182,7 +142,7 @@
               position="0 0 0"
               rotation="0 0 0"
               width="1"
-              height="1"
+              height="1.414"
               material="shader: flat; transparent: true; opacity: 1; side: double;"
               dynamic-canvas-texture="canvas: #tileCanvas;"
             ></a-plane>
@@ -194,15 +154,15 @@
       sceneEl.addEventListener("loaded", async () => {
         const mindarSystem = sceneEl.systems["mindar-image-system"];
         await mindarSystem.start();
-        hint.textContent = "Camera running ✅ Point at your marker.";
+        hint.textContent = "Camera running ✅";
       });
 
       const targetEl = document.getElementById("targetEntity");
       targetEl.addEventListener("targetFound", () => {
-        hint.textContent = "Marker found ✅ Pattern displayed.";
+        hint.textContent = "Marker found ✅";
       });
       targetEl.addEventListener("targetLost", () => {
-        hint.textContent = "Marker lost — point back at the marker.";
+        hint.textContent = "Searching for marker...";
       });
     }
 
