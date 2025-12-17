@@ -36,7 +36,7 @@
 
       --maxw: 640px;
 
-      /* approximate bottom bar height so canvases can avoid overlap */
+      /* Approximate space needed for the bottom controls */
       --bottom-bar-space: 118px;
     }
 
@@ -56,7 +56,6 @@
       touch-action: none;
     }
 
-    /* Better handling for modern mobile viewport units */
     body { height: 100dvh; }
 
     /* --- STEPS --- */
@@ -76,7 +75,7 @@
     .hidden-left { transform: translateX(-100%); }
     .hidden-right { transform: translateX(100%); }
 
-    /* --- CONTENT WRAPPER (centers bars nicely on tablets/large phones) --- */
+    /* --- CONTENT WRAPPER --- */
     .bar-inner {
       width: 100%;
       max-width: var(--maxw);
@@ -89,9 +88,10 @@
     }
 
     /* --- TOP BAR --- */
+    /* Z-Index increased to 40 to stay on top */
     .ui-bar.top-bar {
       position: relative;
-      z-index: 25;
+      z-index: 40; 
       padding: calc(10px) 0;
       background: linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0.05));
       border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -124,7 +124,6 @@
       position: relative;
       overflow: hidden;
       border-radius: 0;
-      /* keep content visible above bottom bar */
       padding-bottom: calc(var(--bottom-bar-space) + env(safe-area-inset-bottom));
     }
 
@@ -166,12 +165,14 @@
     #drawCanvas { z-index: 10; }
     #previewCanvas { z-index: 10; }
 
-    /* --- PATTERN DRAWER (modern bottom sheet) --- */
+    /* --- PATTERN DRAWER --- */
+    /* Z-Index set to 30. It is now LOWER than the bottom bar (40) */
     #patternDrawer {
       position: absolute;
       left: var(--pad);
       right: var(--pad);
-      bottom: calc(var(--bottom-bar-space) + 14px + env(safe-area-inset-bottom));
+      /* Positioned slightly higher so it doesn't get hidden behind the bar completely */
+      bottom: calc(var(--bottom-bar-space) + 20px + env(safe-area-inset-bottom));
       height: 92px;
 
       background: var(--panel-strong);
@@ -180,7 +181,7 @@
       box-shadow: var(--shadow-soft);
       backdrop-filter: blur(14px);
 
-      z-index: 30;
+      z-index: 30; 
       display: flex;
       align-items: center;
       gap: 10px;
@@ -209,17 +210,18 @@
     .pattern-thumb:active { transform: scale(0.97); }
     .pattern-thumb:hover { border-color: rgba(255,255,255,0.28); }
 
-    /* --- BOTTOM BAR (glass, fixed inside step) --- */
+    /* --- BOTTOM BAR --- */
+    /* FIX: Z-Index increased to 40 so it sits ON TOP of the drawer */
     .ui-bar.bottom-bar {
       position: absolute;
       left: 0; right: 0;
       bottom: 0;
-      z-index: 25;
+      z-index: 40; 
 
       padding-top: 10px;
       padding-bottom: calc(12px + env(safe-area-inset-bottom));
 
-      background: linear-gradient(to top, rgba(0,0,0,0.70), rgba(0,0,0,0.28));
+      background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.4));
       backdrop-filter: blur(16px);
       border-top: 1px solid rgba(255,255,255,0.10);
     }
@@ -229,7 +231,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      min-width: 70px;
+      min-width: 60px;
     }
     label {
       font-size: 10px;
@@ -271,7 +273,7 @@
     .btn-icon {
       width: var(--icon-w);
       padding: 0;
-      font-size: 0; /* prevents any accidental text spacing */
+      font-size: 0; 
     }
 
     .icon{
@@ -299,7 +301,6 @@
       color: rgba(0,0,0,0.88);
     }
 
-    /* Inputs */
     select, input[type="color"] {
       height: var(--control-h);
       border-radius: 12px;
@@ -343,7 +344,6 @@
     .row-wrap { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
     .spacer { flex: 1; }
 
-    /* Step 2 bottom bar: stack nicely */
     .stack {
       display: flex;
       flex-direction: column;
@@ -351,7 +351,6 @@
       width: 100%;
     }
 
-    /* small screens: reduce drawer & bar spacing slightly */
     @media (max-width: 380px){
       :root{ --bottom-bar-space: 126px; }
       .pattern-thumb{ width: 62px; height: 62px; }
